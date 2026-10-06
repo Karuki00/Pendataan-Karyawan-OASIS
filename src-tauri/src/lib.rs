@@ -5,7 +5,7 @@ use tauri::{Manager, State};
 
 struct Database(Mutex<Connection>);
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Employee {
     pub nik: String,
     pub timestamp: Option<String>,
@@ -217,6 +217,104 @@ pub fn run() {
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![list_employees, upsert_employees, save_employee])
+        .invoke_handler(tauri::generate_handler![list_employees, upsert_employees, save_employee, delete_employee])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[tauri::command]
+fn delete_employee(nik: String) -> Result<(), String> {
+    let conn = rusqlite::Connection::open("oasis-karyawan.sqlite").map_err(|e| e.to_string())?;
+    
+    conn.execute("DELETE FROM master_karyawan WHERE nik = ?1", [nik])
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::OpenOptions;
+    use std::io::Write;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn setup_test_db() -> Connection {
+        let connection =
+            Connection::open_in_memory().expect("failed to open in-memory test database");
+        initialize_schema(&connection).expect("failed to initialize test database schema");
+        connection
+    }
+
+    fn log_test_result(message: &str) {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock is before the Unix epoch")
+            .as_secs();
+        let line = format!("[{timestamp}] {message}");
+
+        println!("{line}");
+
+        let mut log_file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open("test_execution.log")
+            .expect("failed to open test_execution.log");
+        writeln!(log_file, "{line}").expect("failed to write to test_execution.log");
+    }
+
+    #[test]
+    fn test_sqlite_full_lifecycle_with_logs() {
+        let connection = setup_test_db();
+        log_test_result("Test database setup passed.");
+
+        let employee = Employee {
+            nik: "31710001".to_string(),
+            nama_lengkap: "Budi Santoso".to_string(),
+            divisi: Some("STAFF".to_string()),
+            status: Some("AKTIF".to_string()),
+            ..Default::default()
+        };
+        upsert(&connection, &employee).expect("employee insert failed");
+
+        let inserted_count: i64 = connection
+            .query_row("SELECT COUNT(*) FROM master_karyawan", [], |row| row.get(0))
+            .expect("failed to count inserted employees");
+        assert_eq!(inserted_count, 1);
+        log_test_result("Insert checkpoint passed: Budi Santoso was added.");
+
+        let updated_employee = Employee {
+            nama_lengkap: "Budi Santoso, S.H.".to_string(),
+            divisi: Some("ENGINEERING".to_string()),
+            ..employee
+        };
+        upsert(&connection, &updated_employee).expect("employee upsert update failed");
+
+        let (updated_name, updated_division, total_count): (String, Option<String>, i64) =
+            connection
+                .query_row(
+                    "SELECT nama_lengkap, divisi, (SELECT COUNT(*) FROM master_karyawan)
+                     FROM master_karyawan WHERE nik = ?1",
+                    [&updated_employee.nik],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .expect("failed to read updated employee");
+        assert_eq!(updated_name, "Budi Santoso, S.H.");
+        assert_eq!(updated_division.as_deref(), Some("ENGINEERING"));
+        assert_eq!(total_count, 1);
+        log_test_result("Upsert checkpoint passed: employee was updated without duplicating the row.");
+
+        connection
+            .execute(
+                "DELETE FROM master_karyawan WHERE nik = ?1",
+                [&updated_employee.nik],
+            )
+            .expect("employee delete failed");
+
+        let remaining_count: i64 = connection
+            .query_row("SELECT COUNT(*) FROM master_karyawan", [], |row| row.get(0))
+            .expect("failed to count employees after delete");
+        assert_eq!(remaining_count, 0);
+        log_test_result("Delete checkpoint passed: the employee table is empty.");
+    }
 }

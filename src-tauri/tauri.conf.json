@@ -1,10 +1,10 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "oasis-karyawan-app",
-  "version": "0.1.0",
-  "identifier": "com.lenovo.oasis-karyawan-app",
+  "productName": "Oasis Pendataan Karyawan",
+  "version": "1.0.0",
+  "identifier": "com.oasis.karyawan",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "npm run build",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "oasis-karyawan-app",
+        "title": "Oasis Pendataan Karyawan",
         "width": 800,
         "height": 600
       }

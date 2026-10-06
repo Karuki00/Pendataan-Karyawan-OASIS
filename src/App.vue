@@ -24,6 +24,32 @@ const emptyEmployee = (): Employee => ({
   status: "AKTIF", tempat_kerja: "Lapangan",
 });
 const form = reactive<Employee>(emptyEmployee());
+const formFields: Array<{
+  key: keyof Employee;
+  label: string;
+  type?: string;
+  options?: string[];
+}> = [
+  { key: "nik", label: "NIK *" },
+  { key: "nama_lengkap", label: "Nama Lengkap *" },
+  { key: "jenis_kelamin", label: "Jenis Kelamin", options: ["Laki-laki", "Perempuan"] },
+  { key: "tanggal_lahir", label: "Tanggal Lahir", type: "date" },
+  { key: "golongan_darah", label: "Golongan Darah", options: ["A", "B", "AB", "O"] },
+  { key: "nomor_kk", label: "Nomor KK" },
+  { key: "bpjs_kesehatan", label: "Nomor BPJS Kesehatan" },
+  { key: "bpjs_ketenagakerjaan", label: "Nomor BPJS Ketenagakerjaan" },
+  { key: "nomor_telepon", label: "Nomor Telepon" },
+  { key: "jabatan", label: "Jabatan" },
+  { key: "divisi", label: "Divisi", options: ["SECURITY", "ENGINEERING", "HOUSEKEEPING", "STAFF"] },
+  { key: "nama_ibu_kandung", label: "Nama Ibu Kandung" },
+  { key: "nama_pasangan", label: "Nama Istri/Suami" },
+  { key: "jumlah_anak", label: "Jumlah Anak", type: "number" },
+  { key: "nomor_telp_keluarga", label: "Nomor Telp Keluarga" },
+  { key: "pendidikan_terakhir", label: "Pendidikan Terakhir", options: ["SD", "SMP", "SMA", "SMK", "D3", "S1", "S2", "S3"] },
+  { key: "perjanjian_kerja", label: "Perjanjian Kerja", options: ["PKWTT", "PKWT"] },
+  { key: "status", label: "Status", options: ["AKTIF", "PENSIUN", "RESIGN"] },
+  { key: "tempat_kerja", label: "Tempat Kerja", options: ["Lapangan", "Kantor"] },
+];
 
 function openCreate() {
   Object.assign(form, emptyEmployee());
@@ -87,8 +113,13 @@ function resetMasterSearch() {
       <form class="max-h-[90vh] w-full max-w-3xl overflow-auto rounded-2xl bg-white p-6 shadow-xl" @submit.prevent="saveEmployee">
         <div class="flex items-center justify-between"><h2 class="text-xl font-bold">Data Karyawan</h2><button type="button" class="text-2xl text-slate-400" @click="isModalOpen = false">&times;</button></div>
         <div class="mt-5 grid gap-4 sm:grid-cols-2">
-          <label v-for="field in [{ key: 'nik', label: 'NIK *' }, { key: 'nama_lengkap', label: 'Nama Lengkap *' }, { key: 'jenis_kelamin', label: 'Jenis Kelamin' }, { key: 'tanggal_lahir', label: 'Tanggal Lahir' }, { key: 'golongan_darah', label: 'Golongan Darah' }, { key: 'nomor_kk', label: 'Nomor KK' }, { key: 'bpjs_kesehatan', label: 'Nomor BPJS Kesehatan' }, { key: 'bpjs_ketenagakerjaan', label: 'Nomor BPJS Ketenagakerjaan' }, { key: 'nomor_telepon', label: 'Nomor Telepon' }, { key: 'jabatan', label: 'Jabatan' }, { key: 'divisi', label: 'Divisi' }, { key: 'nama_ibu_kandung', label: 'Nama Ibu Kandung' }, { key: 'nama_pasangan', label: 'Nama Istri/Suami' }, { key: 'jumlah_anak', label: 'Jumlah Anak' }, { key: 'nomor_telp_keluarga', label: 'Nomor Telp Keluarga' }, { key: 'pendidikan_terakhir', label: 'Pendidikan Terakhir' }, { key: 'perjanjian_kerja', label: 'Perjanjian Kerja' }, { key: 'status', label: 'Status' }, { key: 'tempat_kerja', label: 'Tempat Kerja' }]" :key="field.key" class="text-sm font-medium text-slate-700">
-            {{ field.label }}<input v-model="form[field.key as keyof Employee]" :type="field.key === 'tanggal_lahir' ? 'date' : 'text'" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal outline-none focus:border-blue-500">
+          <label v-for="field in formFields" :key="field.key" class="text-sm font-medium text-slate-700">
+            {{ field.label }}
+            <select v-if="field.options" v-model="form[field.key]" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal outline-none focus:border-blue-500">
+              <option value="">Pilih {{ field.label.replace(" *", "") }}</option>
+              <option v-for="option in field.options" :key="option" :value="option">{{ option }}</option>
+            </select>
+            <input v-else v-model="form[field.key]" :type="field.type || 'text'" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal outline-none focus:border-blue-500">
           </label>
           <label class="text-sm font-medium text-slate-700 sm:col-span-2">Alamat Sesuai KTP<textarea v-model="form.alamat_ktp" rows="2" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal outline-none focus:border-blue-500" /></label>
           <label v-for="field in [{ key: 'foto_ktp', label: 'URL Foto KTP' }, { key: 'foto_kk', label: 'URL Foto KK' }, { key: 'foto_bpjs_kesehatan', label: 'URL Foto BPJS Kesehatan' }, { key: 'foto_bpjs_ketenagakerjaan', label: 'URL Foto BPJS Ketenagakerjaan' }]" :key="field.key" class="text-sm font-medium text-slate-700 sm:col-span-2">

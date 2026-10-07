@@ -2,7 +2,8 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ask } from "@tauri-apps/plugin-dialog";
+import { ask, save } from "@tauri-apps/plugin-dialog";
+import * as XLSX from "xlsx";
 import EmployeeDetailModal from "./EmployeeDetailModal.vue";
 import type { Employee } from "../types";
 
@@ -25,6 +26,12 @@ const division = ref("ALL");
 const isLoading = ref(false);
 const errorMessage = ref("");
 const selectedEmployee = ref<Employee | null>(null);
+
+// State untuk Ekspor Excel
+const isExporting = ref(false);
+const exportProgress = ref(0);
+const showExportConfirmModal = ref(false);
+const cleanDateFormat = ref(true);
 
 function normalized(value: string | null | undefined): string {
   return (value || "").trim().toUpperCase();
@@ -51,10 +58,21 @@ function isMale(employee: Employee): boolean {
     || gender === "MALE";
 }
 
+function formatDate(dateStr: string | null | undefined): string {
+  if (!dateStr || dateStr === "-") return "-";
+  const parsedDate = new Date(dateStr);
+  if (Number.isNaN(parsedDate.getTime())) return dateStr;
+
+  const day = String(parsedDate.getDate()).padStart(2, "0");
+  const month = String(parsedDate.getMonth() + 1).padStart(2, "0");
+  const year = parsedDate.getFullYear();
+
+  return `${day}/${month}/${year}`;
+}
+
 const filteredEmployees = computed(() => {
   let result = employees.value;
 
-  // 1. Jika ada filter metrik aktif dari dashboard
   if (props.activeMetricKey) {
     result = result.filter((emp) => {
       const status = normalized(emp.status || "AKTIF");
@@ -78,7 +96,6 @@ const filteredEmployees = computed(() => {
     });
   }
 
-  // 2. Pencarian kata kunci manual
   if (search.value.toUpperCase() === "PENSIUN") {
     result = result.filter((employee) => {
       const age = calculateAge(employee.tanggal_lahir);
@@ -86,11 +103,121 @@ const filteredEmployees = computed(() => {
     });
   }
 
-  // 3. Filter dropdown divisi
   return division.value === "ALL"
     ? result
     : result.filter((employee) => (employee.divisi || "").toUpperCase() === division.value);
 });
+
+function triggerExportModal() {
+  if (!filteredEmployees.value.length) {
+    alert("Tidak ada data untuk diekspor.");
+    return;
+  }
+  showExportConfirmModal.value = true;
+}
+
+async function confirmAndExport() {
+  showExportConfirmModal.value = false;
+
+  try {
+    const defaultFileName = `Data_Karyawan_Oasis_Lengkap_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const filePath = await save({
+      defaultPath: defaultFileName,
+      filters: [{ name: "Excel Spreadsheet", extensions: ["xlsx"] }],
+    });
+
+    if (!filePath) return;
+
+    isExporting.value = true;
+    exportProgress.value = 10;
+    await new Promise((r) => setTimeout(r, 50));
+
+    const list = filteredEmployees.value;
+    const total = list.length;
+    const exportData: Record<string, any>[] = [];
+
+    for (let i = 0; i < total; i++) {
+      const emp = list[i] as Record<string, any>;
+
+      const birthDate = cleanDateFormat.value ? formatDate(emp.tanggal_lahir) : emp.tanggal_lahir || "-";
+      const joinDate = cleanDateFormat.value ? formatDate(emp.join_date) : emp.join_date || "-";
+      const kartapDate = cleanDateFormat.value ? formatDate(emp.tanggal_kartap) : emp.tanggal_kartap || "-";
+
+      exportData.push({
+        "No.": i + 1,
+        "NIK": emp.nik || "-",
+        "Nama Lengkap": emp.nama_lengkap || "-",
+        "Jenis Kelamin": emp.jenis_kelamin || "-",
+        "Tanggal Lahir": birthDate,
+        "Golongan Darah": emp.golongan_darah || "-",
+        "Nomor KK": emp.nomor_kk || "-",
+        "Alamat KTP": emp.alamat_ktp || "-",
+        "BPJS Kesehatan": emp.bpjs_kesehatan || "-",
+        "BPJS Ketenagakerjaan": emp.bpjs_ketenagakerjaan || "-",
+        "Nomor Telepon": emp.nomor_telepon || "-",
+        "Divisi": emp.divisi || "-",
+        "Jabatan": emp.jabatan || "-",
+        "Perjanjian Kerja": emp.perjanjian_kerja || "PKWTT",
+        "Tempat Kerja": emp.tempat_kerja || "Lapangan",
+        "Status": emp.status || "AKTIF",
+        "Join Date": joinDate,
+        "Tanggal Kartap": kartapDate,
+        "Pendidikan Terakhir": emp.pendidikan_terakhir || "-",
+        "Nama Ibu Kandung": emp.nama_ibu_kandung || "-",
+        "Nama Pasangan": emp.nama_pasangan || "-",
+        "Jumlah Anak": emp.jumlah_anak || "0",
+        "Nomor Telp Keluarga": emp.nomor_telp_keluarga || "-",
+        "Foto KTP": emp.foto_ktp || "-",
+        "Foto KK": emp.foto_kk || "-",
+        "Foto BPJS Kesehatan": emp.foto_bpjs_kesehatan || "-",
+        "Foto BPJS Ketenagakerjaan": emp.foto_bpjs_ketenagakerjaan || "-",
+        "Timestamp Data": emp.timestamp || "-",
+      });
+
+      if (i % 5 === 0 || i === total - 1) {
+        exportProgress.value = 10 + Math.round(((i + 1) / total) * 50);
+        await new Promise((r) => setTimeout(r, 1));
+      }
+    }
+
+    exportProgress.value = 70;
+    await new Promise((r) => setTimeout(r, 20));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Master Data Karyawan");
+
+    if (exportData.length > 0) {
+      const colWidths = Object.keys(exportData[0]).map((key) => {
+        const maxLen = exportData.reduce((max, row) => {
+          const val = String(row[key] || "");
+          return Math.max(max, val.length);
+        }, key.length);
+        return { wch: Math.min(Math.max(maxLen + 3, 12), 40) };
+      });
+      worksheet["!cols"] = colWidths;
+    }
+
+    exportProgress.value = 85;
+    await new Promise((r) => setTimeout(r, 20));
+    const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+
+    await invoke("export_excel_file", {
+      path: filePath,
+      bytes: Array.from(new Uint8Array(excelBuffer)),
+    });
+
+    exportProgress.value = 100;
+    await new Promise((r) => setTimeout(r, 300));
+  } catch (error) {
+    console.error("Export error:", error);
+    errorMessage.value =
+      "Gagal mengekspor data: " + (error instanceof Error ? error.message : String(error));
+  } finally {
+    isExporting.value = false;
+    exportProgress.value = 0;
+  }
+}
 
 async function loadEmployees() {
   isLoading.value = true;
@@ -173,6 +300,20 @@ onMounted(() => void loadEmployees());
         <option value="HOUSEKEEPING">HOUSEKEEPING</option>
         <option value="STAFF">STAFF</option>
       </select>
+      
+      <!-- Tombol Trigger Ekspor Excel -->
+      <button 
+        @click="triggerExportModal" 
+        :disabled="isExporting"
+        class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors shadow-sm"
+      >
+        <svg v-if="isExporting" class="h-4 w-4 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+        </svg>
+        <span>{{ isExporting ? `Mengekspor (${exportProgress}%)...` : '📊 Export Excel' }}</span>
+      </button>
+      
       <span class="whitespace-nowrap text-sm text-slate-500">{{ filteredEmployees.length }} karyawan</span>
     </div>
 
@@ -233,4 +374,92 @@ onMounted(() => void loadEmployees());
     </div>
     <EmployeeDetailModal v-if="selectedEmployee" :employee="selectedEmployee" @close="selectedEmployee = null" />
   </section>
+
+  <!-- Modal Konfirmasi Opsi Ekspor Excel -->
+  <Teleport to="body">
+    <div 
+      v-if="showExportConfirmModal" 
+      class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-xs p-4"
+      @click.self="showExportConfirmModal = false"
+    >
+      <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 space-y-5">
+        <div class="flex items-center gap-3 border-b border-slate-100 pb-3">
+          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-xl">
+            ⚙️
+          </div>
+          <div>
+            <h3 class="font-bold text-slate-800 text-base">Opsi Ekspor Excel</h3>
+            <p class="text-xs text-slate-500">Konfigurasi pembersihan format data</p>
+          </div>
+        </div>
+
+        <div class="rounded-xl bg-slate-50 p-4 border border-slate-200/80 space-y-3">
+          <label class="flex items-start gap-3 cursor-pointer">
+            <input 
+              type="checkbox" 
+              v-model="cleanDateFormat" 
+              class="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+            />
+            <div>
+              <span class="text-sm font-semibold text-slate-800">Rapikan Format Tanggal (DD/MM/YYYY)</span>
+              <p class="text-xs text-slate-500 mt-0.5">
+                Mengubah string tanggal mentah (contoh: <code class="font-mono text-[10px] bg-slate-200 px-1 py-0.5 rounded">Sat Oct 11 1975...</code>) menjadi format standar (<code class="font-mono text-[10px] bg-slate-200 px-1 py-0.5 rounded">11/10/1975</code>).
+              </p>
+            </div>
+          </label>
+        </div>
+
+        <div class="text-xs text-slate-500">
+          Menyimpan data sebanyak <strong>{{ filteredEmployees.length }} karyawan</strong>.
+        </div>
+
+        <div class="flex justify-end gap-2.5 pt-2 border-t border-slate-100">
+          <button 
+            @click="showExportConfirmModal = false"
+            class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+          >
+            Batal
+          </button>
+          <button 
+            @click="confirmAndExport"
+            class="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors shadow-sm"
+          >
+            Mulai Export
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <!-- Modal Progress Ekspor Excel -->
+  <Teleport to="body">
+    <div 
+      v-if="isExporting" 
+      class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-xs p-4"
+    >
+      <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 text-center space-y-4">
+        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-2xl">
+          📊
+        </div>
+        
+        <div>
+          <h3 class="font-bold text-slate-800 text-base">Memproses Export Excel</h3>
+          <p class="text-xs text-slate-500 mt-1">
+            Menulis data {{ filteredEmployees.length }} karyawan...
+          </p>
+        </div>
+
+        <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden border border-slate-200">
+          <div 
+            class="bg-emerald-600 h-full transition-all duration-150 ease-out rounded-full"
+            :style="{ width: `${exportProgress}%` }"
+          ></div>
+        </div>
+
+        <div class="text-xs font-mono font-semibold text-slate-600">
+          {{ exportProgress }}%
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>

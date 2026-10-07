@@ -2,6 +2,7 @@ use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{Manager, State};
+use std::fs;
 
 struct Database(Mutex<Connection>);
 
@@ -211,6 +212,11 @@ fn delete_employee(database: State<'_, Database>, nik: String) -> Result<(), Str
     Ok(())
 }
 
+#[tauri::command]
+async fn export_excel_file(path: String, bytes: Vec<u8>) -> Result<(), String> {
+    fs::write(&path, bytes).map_err(|e| format!("Gagal menyimpan file ke disk: {}", e))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -229,7 +235,8 @@ pub fn run() {
             list_employees,
             upsert_employees,
             save_employee,
-            delete_employee
+            delete_employee,
+            export_excel_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

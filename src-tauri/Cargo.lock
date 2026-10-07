@@ -3,7 +3,7 @@
 version = 4
 
 [[package]]
-name = "Pendataan-aryawan-OASIS"
+name = "Pendataan-Karyawan-OASIS"
 version = "1.0.3"
 dependencies = [
  "rusqlite",

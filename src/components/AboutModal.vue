@@ -6,6 +6,8 @@ defineEmits<{
   close: [];
 }>();
 
+import logoUrl from "../assets/LOGO_OASIS_V2.png";
+
 // App metadata
 const appVersion = tauriConfig.version;
 const appTitle = tauriConfig.productName || "Pendataan Karyawan OASIS";
@@ -40,9 +42,12 @@ async function openGitHub() {
         >
           ✕
         </button>
-        
-        <div class="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-3xl shadow-inner backdrop-blur-md">
-          🏢
+        <div class="flex items-center justify-center">
+          <img 
+          :src="logoUrl" 
+          alt="Logo Apartemen Oasis" 
+          class="h-[10vh] w-auto items-center justify-center object-contain"
+            />
         </div>
         <h3 class="text-xl font-extrabold tracking-tight">{{ appTitle }}</h3>
         <p class="text-xs text-blue-100 mt-1 font-medium">Sistem Informasi Master Data Karyawan</p>

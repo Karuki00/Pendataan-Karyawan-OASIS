@@ -7,6 +7,7 @@ import EmployeeTable from "./components/EmployeeTable.vue";
 import AboutModal from "./components/AboutModal.vue";
 import tauriConfig from "../src-tauri/tauri.conf.json"; // Path relatif sesuai lokasi App.vue
 import type { Employee } from "./types";
+import logoUrl from "../src/assets/LOGO_OASIS_V1-removebg-preview.png";
 
 type Tab = "dashboard" | "master";
 const activeTab = ref<Tab>("dashboard");
@@ -106,12 +107,16 @@ function resetMasterSearch() {
   <div class="min-h-screen bg-slate-100 text-slate-900">
     <header class="border-b border-slate-200 bg-white">
     <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-      <div>
-        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">Apartemen Oasis Mitra Sarana</p>
-        <h1 class="mt-1 text-2xl font-bold">Pendataan Karyawan</h1>
-      </div>
+      <div class="flex flex-col items-start gap-1">
+        <img 
+          :src="logoUrl" 
+          alt="Logo Apartemen Oasis" 
+          class="h-[13vh] w-auto object-contain"
+        />
+      <h1 class="text-2xl font-bold text-slate-900">Database</h1>
+    </div>
 
-      <div class="flex items-center gap-3">
+      <div class="flex items-bottom gap-3">
         <!-- About Button Trigger (Versi Otomatis) -->
         <button 
           @click="showAboutModal = true"

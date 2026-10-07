@@ -6,11 +6,17 @@ import { ask } from "@tauri-apps/plugin-dialog";
 import EmployeeDetailModal from "./EmployeeDetailModal.vue";
 import type { Employee } from "../types";
 
-const props = defineProps<{ refreshKey: number; initialSearch?: string }>();
+const props = defineProps<{ 
+  refreshKey: number; 
+  initialSearch?: string;
+  activeMetricKey?: string;
+}>();
+
 const emit = defineEmits<{
   edit: [employee: Employee];
   resetSearch: [];
   refresh: [];
+  clearMetricFilter: [];
 }>();
 
 const employees = ref<Employee[]>([]);
@@ -19,6 +25,10 @@ const division = ref("ALL");
 const isLoading = ref(false);
 const errorMessage = ref("");
 const selectedEmployee = ref<Employee | null>(null);
+
+function normalized(value: string | null | undefined): string {
+  return (value || "").trim().toUpperCase();
+}
 
 function calculateAge(value: string | null | undefined): number | null {
   if (!value) return null;
@@ -31,14 +41,52 @@ function calculateAge(value: string | null | undefined): number | null {
   return age;
 }
 
+function isMale(employee: Employee): boolean {
+  const gender = normalized(employee.jenis_kelamin);
+  return gender === "L"
+    || gender === "LAKI-LAKI"
+    || gender === "LAKI LAKI"
+    || gender.includes("LAKI")
+    || gender === "PRIA"
+    || gender === "MALE";
+}
+
 const filteredEmployees = computed(() => {
   let result = employees.value;
+
+  // 1. Jika ada filter metrik aktif dari dashboard
+  if (props.activeMetricKey) {
+    result = result.filter((emp) => {
+      const status = normalized(emp.status || "AKTIF");
+      const isEmpActive = status === "AKTIF";
+
+      switch (props.activeMetricKey) {
+        case "ALL_ACTIVE": return isEmpActive;
+        case "PENSIUN": return status === "PENSIUN";
+        case "PKWTT": return isEmpActive && normalized(emp.perjanjian_kerja || "PKWTT") === "PKWTT";
+        case "PKWT": return isEmpActive && normalized(emp.perjanjian_kerja) === "PKWT";
+        case "STAFF": return isEmpActive && normalized(emp.divisi) === "STAFF";
+        case "HOUSEKEEPING": return isEmpActive && normalized(emp.divisi) === "HOUSEKEEPING";
+        case "ENGINEERING": return isEmpActive && normalized(emp.divisi) === "ENGINEERING";
+        case "SECURITY": return isEmpActive && normalized(emp.divisi) === "SECURITY";
+        case "KANTOR": return isEmpActive && normalized(emp.tempat_kerja) === "KANTOR";
+        case "LAPANGAN": return isEmpActive && normalized(emp.tempat_kerja) === "LAPANGAN";
+        case "PEREMPUAN": return isEmpActive && !isMale(emp);
+        case "LAKI_LAKI": return isEmpActive && isMale(emp);
+        default: return true;
+      }
+    });
+  }
+
+  // 2. Pencarian kata kunci manual
   if (search.value.toUpperCase() === "PENSIUN") {
     result = result.filter((employee) => {
       const age = calculateAge(employee.tanggal_lahir);
       return age !== null && age >= 55;
     });
   }
+
+  // 3. Filter dropdown divisi
   return division.value === "ALL"
     ? result
     : result.filter((employee) => (employee.divisi || "").toUpperCase() === division.value);
@@ -108,6 +156,14 @@ onMounted(() => void loadEmployees());
 
 <template>
   <section class="space-y-4">
+    <!-- Indicator Filter Aktif dari Dashboard -->
+    <div v-if="props.activeMetricKey" class="flex items-center justify-between rounded-lg bg-blue-50 px-4 py-2 border border-blue-200 text-sm text-blue-800">
+      <span>Filter Metrik Aktif: <strong>{{ props.activeMetricKey }}</strong></span>
+      <button @click="emit('clearMetricFilter')" class="text-xs text-blue-600 underline font-semibold hover:text-blue-800">
+        Reset Filter Dashboard
+      </button>
+    </div>
+
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
       <input v-model="search" class="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 outline-none focus:border-blue-500" placeholder="Cari nama, NIK, atau divisi...">
       <select v-model="division" class="rounded-lg border border-slate-300 bg-white px-3 py-2.5 outline-none focus:border-blue-500" aria-label="Filter divisi">
@@ -119,7 +175,9 @@ onMounted(() => void loadEmployees());
       </select>
       <span class="whitespace-nowrap text-sm text-slate-500">{{ filteredEmployees.length }} karyawan</span>
     </div>
+
     <p v-if="errorMessage" class="rounded-lg bg-red-50 p-3 text-sm text-red-700">{{ errorMessage }}</p>
+
     <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div class="overflow-auto">
         <table class="min-w-[1000px] w-full text-left text-sm">

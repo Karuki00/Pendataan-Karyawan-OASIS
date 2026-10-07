@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { reactive, ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import DashboardView from "./components/DashboardView.vue";
+import DashboardView, { type MetricFilterKey } from "./components/DashboardView.vue";
 import ExcelImporter from "./components/ExcelImporter.vue";
 import EmployeeTable from "./components/EmployeeTable.vue";
+import AboutModal from "./components/AboutModal.vue";
+import tauriConfig from "../src-tauri/tauri.conf.json"; // Path relatif sesuai lokasi App.vue
 import type { Employee } from "./types";
 
 type Tab = "dashboard" | "master";
@@ -12,8 +14,11 @@ const refreshKey = ref(0);
 const isModalOpen = ref(false);
 const isImportModalOpen = ref(false);
 const masterSearchQuery = ref("");
+const activeMetricKey = ref<MetricFilterKey | null>(null);
 const isSaving = ref(false);
 const errorMessage = ref("");
+const showAboutModal = ref(false);
+const appVersion = tauriConfig.version;
 
 const emptyEmployee = (): Employee => ({
   nik: "", nama_lengkap: "", jenis_kelamin: "", tanggal_lahir: "", golongan_darah: "",
@@ -75,12 +80,22 @@ async function saveEmployee() {
 function openImport() { isImportModalOpen.value = true; }
 function openMaster() {
   masterSearchQuery.value = "";
+  activeMetricKey.value = null;
   activeTab.value = "master";
 }
 function imported() { refreshKey.value++; isImportModalOpen.value = false; openMaster(); }
 function openMasterWithFilter(filterQuery: string) {
   masterSearchQuery.value = filterQuery;
+  activeMetricKey.value = null;
   activeTab.value = "master";
+}
+function selectMetric(filterKey: MetricFilterKey) {
+  activeMetricKey.value = filterKey;
+  masterSearchQuery.value = "";
+  activeTab.value = "master";
+}
+function clearMetricFilter() {
+  activeMetricKey.value = null;
 }
 function resetMasterSearch() {
   masterSearchQuery.value = "";
@@ -90,18 +105,39 @@ function resetMasterSearch() {
 <template>
   <div class="min-h-screen bg-slate-100 text-slate-900">
     <header class="border-b border-slate-200 bg-white">
-      <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-        <div><p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">Apartemen Oasis Mitra Sarana</p><h1 class="mt-1 text-2xl font-bold">Pendataan Karyawan</h1></div>
-        <button class="rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white shadow-sm hover:bg-blue-700" @click="openCreate">+ Tambah Karyawan</button>
+    <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">Apartemen Oasis Mitra Sarana</p>
+        <h1 class="mt-1 text-2xl font-bold">Pendataan Karyawan</h1>
       </div>
-    </header>
+
+      <div class="flex items-center gap-3">
+        <button class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 transition-colors" @click="openCreate">
+          + Tambah Karyawan
+        </button>
+
+        <!-- About Button Trigger (Versi Otomatis) -->
+        <button 
+          @click="showAboutModal = true"
+          class="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+        >
+          <span>ℹ️ Tentang Aplikasi</span>
+          <span class="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-700 font-mono">
+            v{{ appVersion }}
+          </span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <AboutModal v-if="showAboutModal" @close="showAboutModal = false" />
     <main class="mx-auto max-w-7xl space-y-6 px-6 py-8">
       <nav class="flex gap-2 rounded-xl bg-white p-1 shadow-sm">
         <button class="rounded-lg px-4 py-2 font-medium" :class="activeTab === 'dashboard' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'" @click="activeTab = 'dashboard'; masterSearchQuery = ''">📊 Dashboard &amp; Decision Center</button>
         <button class="rounded-lg px-4 py-2 font-medium" :class="activeTab === 'master' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'" @click="openMaster">📋 Data Karyawan</button>
       </nav>
-      <DashboardView v-if="activeTab === 'dashboard'" :refresh-key="refreshKey" @import="openImport" @add="openCreate" @open-master="openMaster" @open-master-with-filter="openMasterWithFilter" />
-      <EmployeeTable v-if="activeTab === 'master'" :refresh-key="refreshKey" :initial-search="masterSearchQuery" @reset-search="resetMasterSearch" @edit="openEdit" />
+      <DashboardView v-if="activeTab === 'dashboard'" :refresh-key="refreshKey" @import="openImport" @add="openCreate" @open-master="openMaster" @open-master-with-filter="openMasterWithFilter" @select-metric="selectMetric" />
+      <EmployeeTable v-if="activeTab === 'master'" :refresh-key="refreshKey" :initial-search="masterSearchQuery" :active-metric-key="activeMetricKey || undefined" @reset-search="resetMasterSearch" @edit="openEdit" @clear-metric-filter="clearMetricFilter" />
     </main>
     <div v-if="isImportModalOpen" class="fixed inset-0 z-20 flex items-center justify-center bg-slate-900/50 p-4" @click.self="isImportModalOpen = false">
       <div class="max-h-[92vh] w-full max-w-6xl overflow-auto rounded-2xl bg-slate-100 p-6 shadow-xl">

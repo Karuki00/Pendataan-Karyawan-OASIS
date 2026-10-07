@@ -202,6 +202,15 @@ fn save_employee(database: State<'_, Database>, employee: Employee) -> Result<()
     upsert(&connection, &employee).map_err(|error| error.to_string())
 }
 
+#[tauri::command]
+fn delete_employee(database: State<'_, Database>, nik: String) -> Result<(), String> {
+    let connection = database.0.lock().map_err(|error| error.to_string())?;
+    connection
+        .execute("DELETE FROM master_karyawan WHERE nik = ?1", [nik])
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -216,20 +225,14 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![list_employees, upsert_employees, save_employee])
-        .invoke_handler(tauri::generate_handler![list_employees, upsert_employees, save_employee, delete_employee])
+        .invoke_handler(tauri::generate_handler![
+            list_employees,
+            upsert_employees,
+            save_employee,
+            delete_employee
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
-}
-
-#[tauri::command]
-fn delete_employee(nik: String) -> Result<(), String> {
-    let conn = rusqlite::Connection::open("oasis-karyawan.sqlite").map_err(|e| e.to_string())?;
-    
-    conn.execute("DELETE FROM master_karyawan WHERE nik = ?1", [nik])
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
 }
 
 #[cfg(test)]

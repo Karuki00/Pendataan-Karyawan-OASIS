@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { ask } from "@tauri-apps/plugin-dialog";
 import EmployeeDetailModal from "./EmployeeDetailModal.vue";
 import type { Employee } from "../types";
 
@@ -53,8 +54,14 @@ async function loadEmployees() {
 }
 
 async function handleDelete(employee: Employee) {
-  const confirmed = confirm(
-    `⚠️ HAPUS PERMANEN?\n\nApakah Anda yakin ingin menghapus data "${employee.nama_lengkap}" (NIK: ${employee.nik})?\n\nTindakan ini akan menghapus data dari SQLite.`
+  const confirmed = await ask(
+    `Apakah Anda yakin ingin menghapus data "${employee.nama_lengkap}" (NIK: ${employee.nik})?\n\nTindakan ini akan menghapus data dari SQLite secara permanen.`,
+    {
+      title: "⚠️ Konfirmasi Hapus Data Karyawan",
+      kind: "warning",
+      okLabel: "Ya, Hapus Permanen",
+      cancelLabel: "Batal",
+    }
   );
 
   if (!confirmed) return;
@@ -64,7 +71,7 @@ async function handleDelete(employee: Employee) {
     await loadEmployees();
     emit("refresh");
   } catch (error) {
-    alert("Gagal menghapus data karyawan: " + (error instanceof Error ? error.message : String(error)));
+    errorMessage.value = "Gagal menghapus data karyawan: " + (error instanceof Error ? error.message : String(error));
   }
 }
 

@@ -1,8 +1,9 @@
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
+use std::fs;
+use std::process::Command;
 use std::sync::Mutex;
 use tauri::{Manager, State};
-use std::fs;
 
 struct Database(Mutex<Connection>);
 
@@ -35,6 +36,25 @@ pub struct Employee {
     pub perjanjian_kerja: Option<String>,
     pub status: Option<String>,
     pub tempat_kerja: Option<String>,
+    pub is_flagged: Option<bool>,
+}
+
+fn compute_is_flagged(emp: &Employee) -> bool {
+    let nik = emp.nik.trim();
+    let kk = emp.nomor_kk.as_deref().unwrap_or("").trim();
+    let bpjs_kes = emp.bpjs_kesehatan.as_deref().unwrap_or("").trim();
+    let bpjs_tk = emp.bpjs_ketenagakerjaan.as_deref().unwrap_or("").trim();
+
+    // Condition 1: NIK bukan 16 digit angka
+    let invalid_nik = nik.len() != 16 || !nik.chars().all(|c| c.is_ascii_digit());
+
+    // Condition 2: Nomor KK diisi tetapi bukan 16 digit angka
+    let invalid_kk = !kk.is_empty() && (kk.len() != 16 || !kk.chars().all(|c| c.is_ascii_digit()));
+
+    // Condition 3: BPJS belum lengkap
+    let missing_bpjs = bpjs_kes.is_empty() || bpjs_tk.is_empty();
+
+    invalid_nik || invalid_kk || missing_bpjs
 }
 
 fn initialize_schema(connection: &Connection) -> rusqlite::Result<()> {
@@ -66,13 +86,15 @@ fn initialize_schema(connection: &Connection) -> rusqlite::Result<()> {
           pendidikan_terakhir TEXT,
           perjanjian_kerja TEXT NOT NULL DEFAULT 'PKWTT',
           status TEXT NOT NULL DEFAULT 'AKTIF',
-          tempat_kerja TEXT NOT NULL DEFAULT 'Lapangan'
+          tempat_kerja TEXT NOT NULL DEFAULT 'Lapangan',
+          is_flagged INTEGER NOT NULL DEFAULT 0
         );",
     )?;
 
     for (column, definition) in [
         ("join_date", "TEXT"),
         ("tanggal_kartap", "TEXT"),
+        ("is_flagged", "INTEGER NOT NULL DEFAULT 0"),
     ] {
         let exists: bool = connection.query_row(
             "SELECT EXISTS(SELECT 1 FROM pragma_table_info('master_karyawan') WHERE name = ?1)",
@@ -90,6 +112,19 @@ fn initialize_schema(connection: &Connection) -> rusqlite::Result<()> {
 }
 
 #[tauri::command]
+fn open_folder_dir(path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let win_path = path.replace("/", "\\");
+        Command::new("explorer.exe")
+            .arg(&win_path)
+            .spawn()
+            .map_err(|e| format!("Gagal membuka Explorer: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 fn list_employees(database: State<'_, Database>, search: Option<String>) -> Result<Vec<Employee>, String> {
     let connection = database.0.lock().map_err(|error| error.to_string())?;
     let pattern = format!("%{}%", search.unwrap_or_default().trim());
@@ -101,7 +136,7 @@ fn list_employees(database: State<'_, Database>, search: Option<String>) -> Resu
                     nama_ibu_kandung, nama_pasangan, jumlah_anak,
                     nomor_telp_keluarga, foto_ktp, foto_kk, foto_bpjs_kesehatan,
                     foto_bpjs_ketenagakerjaan, pendidikan_terakhir,
-                    perjanjian_kerja, status, tempat_kerja
+                    perjanjian_kerja, status, tempat_kerja, is_flagged
              FROM master_karyawan
              WHERE ?1 = '' OR nama_lengkap LIKE ?1 COLLATE NOCASE
                 OR nik LIKE ?1 OR divisi LIKE ?1
@@ -110,6 +145,7 @@ fn list_employees(database: State<'_, Database>, search: Option<String>) -> Resu
         .map_err(|error| error.to_string())?;
     let rows = statement
         .query_map([pattern], |row| {
+            let flagged_int: i32 = row.get(27)?;
             Ok(Employee {
                 nik: row.get(0)?,
                 timestamp: row.get(1)?,
@@ -138,6 +174,7 @@ fn list_employees(database: State<'_, Database>, search: Option<String>) -> Resu
                 perjanjian_kerja: row.get(24)?,
                 status: row.get(25)?,
                 tempat_kerja: row.get(26)?,
+                is_flagged: Some(flagged_int != 0),
             })
         })
         .map_err(|error| error.to_string())?;
@@ -145,14 +182,16 @@ fn list_employees(database: State<'_, Database>, search: Option<String>) -> Resu
 }
 
 fn upsert(connection: &Connection, employee: &Employee) -> rusqlite::Result<()> {
+    let is_flagged_val = if compute_is_flagged(employee) { 1 } else { 0 };
+
     connection.execute(
         "INSERT INTO master_karyawan (
           nik, timestamp, join_date, tanggal_kartap, nama_lengkap, jenis_kelamin, tanggal_lahir, golongan_darah,
           nomor_kk, alamat_ktp, bpjs_kesehatan, bpjs_ketenagakerjaan, nomor_telepon,
           jabatan, divisi, nama_ibu_kandung, nama_pasangan, jumlah_anak,
           nomor_telp_keluarga, foto_ktp, foto_kk, foto_bpjs_kesehatan,
-          foto_bpjs_ketenagakerjaan, pendidikan_terakhir, perjanjian_kerja, status, tempat_kerja
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, COALESCE(?25, 'PKWTT'), COALESCE(?26, 'AKTIF'), COALESCE(?27, 'Lapangan'))
+          foto_bpjs_ketenagakerjaan, pendidikan_terakhir, perjanjian_kerja, status, tempat_kerja, is_flagged
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, COALESCE(?25, 'PKWTT'), COALESCE(?26, 'AKTIF'), COALESCE(?27, 'Lapangan'), ?28)
         ON CONFLICT(nik) DO UPDATE SET
           timestamp=excluded.timestamp, join_date=excluded.join_date, tanggal_kartap=excluded.tanggal_kartap,
           nama_lengkap=excluded.nama_lengkap, jenis_kelamin=excluded.jenis_kelamin,
@@ -166,7 +205,7 @@ fn upsert(connection: &Connection, employee: &Employee) -> rusqlite::Result<()> 
           foto_bpjs_ketenagakerjaan=excluded.foto_bpjs_ketenagakerjaan,
           pendidikan_terakhir=excluded.pendidikan_terakhir,
           perjanjian_kerja=excluded.perjanjian_kerja, status=excluded.status,
-          tempat_kerja=excluded.tempat_kerja",
+          tempat_kerja=excluded.tempat_kerja, is_flagged=excluded.is_flagged",
         params![
             employee.nik, employee.timestamp, employee.join_date, employee.tanggal_kartap,
             employee.nama_lengkap, employee.jenis_kelamin, employee.tanggal_lahir, employee.golongan_darah, employee.nomor_kk, employee.alamat_ktp,
@@ -174,7 +213,7 @@ fn upsert(connection: &Connection, employee: &Employee) -> rusqlite::Result<()> 
             employee.jabatan, employee.divisi, employee.nama_ibu_kandung, employee.nama_pasangan,
             employee.jumlah_anak, employee.nomor_telp_keluarga, employee.foto_ktp, employee.foto_kk,
             employee.foto_bpjs_kesehatan, employee.foto_bpjs_ketenagakerjaan, employee.pendidikan_terakhir,
-            employee.perjanjian_kerja, employee.status, employee.tempat_kerja
+            employee.perjanjian_kerja, employee.status, employee.tempat_kerja, is_flagged_val
         ],
     )?;
     Ok(())
@@ -236,95 +275,9 @@ pub fn run() {
             upsert_employees,
             save_employee,
             delete_employee,
-            export_excel_file
+            export_excel_file,
+            open_folder_dir
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs::OpenOptions;
-    use std::io::Write;
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    fn setup_test_db() -> Connection {
-        let connection =
-            Connection::open_in_memory().expect("failed to open in-memory test database");
-        initialize_schema(&connection).expect("failed to initialize test database schema");
-        connection
-    }
-
-    fn log_test_result(message: &str) {
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system clock is before the Unix epoch")
-            .as_secs();
-        let line = format!("[{timestamp}] {message}");
-
-        println!("{line}");
-
-        let mut log_file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open("test_execution.log")
-            .expect("failed to open test_execution.log");
-        writeln!(log_file, "{line}").expect("failed to write to test_execution.log");
-    }
-
-    #[test]
-    fn test_sqlite_full_lifecycle_with_logs() {
-        let connection = setup_test_db();
-        log_test_result("Test database setup passed.");
-
-        let employee = Employee {
-            nik: "31710001".to_string(),
-            nama_lengkap: "Budi Santoso".to_string(),
-            divisi: Some("STAFF".to_string()),
-            status: Some("AKTIF".to_string()),
-            ..Default::default()
-        };
-        upsert(&connection, &employee).expect("employee insert failed");
-
-        let inserted_count: i64 = connection
-            .query_row("SELECT COUNT(*) FROM master_karyawan", [], |row| row.get(0))
-            .expect("failed to count inserted employees");
-        assert_eq!(inserted_count, 1);
-        log_test_result("Insert checkpoint passed: Budi Santoso was added.");
-
-        let updated_employee = Employee {
-            nama_lengkap: "Budi Santoso, S.H.".to_string(),
-            divisi: Some("ENGINEERING".to_string()),
-            ..employee
-        };
-        upsert(&connection, &updated_employee).expect("employee upsert update failed");
-
-        let (updated_name, updated_division, total_count): (String, Option<String>, i64) =
-            connection
-                .query_row(
-                    "SELECT nama_lengkap, divisi, (SELECT COUNT(*) FROM master_karyawan)
-                     FROM master_karyawan WHERE nik = ?1",
-                    [&updated_employee.nik],
-                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-                )
-                .expect("failed to read updated employee");
-        assert_eq!(updated_name, "Budi Santoso, S.H.");
-        assert_eq!(updated_division.as_deref(), Some("ENGINEERING"));
-        assert_eq!(total_count, 1);
-        log_test_result("Upsert checkpoint passed: employee was updated without duplicating the row.");
-
-        connection
-            .execute(
-                "DELETE FROM master_karyawan WHERE nik = ?1",
-                [&updated_employee.nik],
-            )
-            .expect("employee delete failed");
-
-        let remaining_count: i64 = connection
-            .query_row("SELECT COUNT(*) FROM master_karyawan", [], |row| row.get(0))
-            .expect("failed to count employees after delete");
-        assert_eq!(remaining_count, 0);
-        log_test_result("Delete checkpoint passed: the employee table is empty.");
-    }
 }

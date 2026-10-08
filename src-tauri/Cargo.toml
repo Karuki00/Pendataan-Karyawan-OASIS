@@ -1,6 +1,6 @@
 [package]
 name = "Pendataan-Karyawan-OASIS"
-version = "1.0.3"
+version = "1.0.7"
 description = "A Tauri App"
 authors = ["Karuki"]
 edition = "2021"

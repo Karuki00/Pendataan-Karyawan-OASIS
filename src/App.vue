@@ -1,177 +1,274 @@
 <script setup lang="ts">
-import { reactive, ref } from "vue";
+import { onMounted, ref, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import DashboardView, { type MetricFilterKey } from "./components/DashboardView.vue";
 import ExcelImporter from "./components/ExcelImporter.vue";
 import EmployeeTable from "./components/EmployeeTable.vue";
+import EmployeeModal from "./components/EmployeeModal.vue";
 import AboutModal from "./components/AboutModal.vue";
-import tauriConfig from "../src-tauri/tauri.conf.json"; // Path relatif sesuai lokasi App.vue
+import tauriConfig from "../src-tauri/tauri.conf.json";
 import type { Employee } from "./types";
-import logoUrl from "../src/assets/LOGO_OASIS_V1-removebg-preview.png";
+import logoUrl from "../src/assets/LOGO_OASIS_V2.png";
 
 type Tab = "dashboard" | "master";
 const activeTab = ref<Tab>("dashboard");
 const refreshKey = ref(0);
+
 const isModalOpen = ref(false);
 const isImportModalOpen = ref(false);
+const showAboutModal = ref(false);
+const employeeToEdit = ref<Employee | null>(null);
+
 const masterSearchQuery = ref("");
 const activeMetricKey = ref<MetricFilterKey | null>(null);
-const isSaving = ref(false);
-const errorMessage = ref("");
-const showAboutModal = ref(false);
 const appVersion = tauriConfig.version;
 
-const emptyEmployee = (): Employee => ({
-  nik: "", nama_lengkap: "", jenis_kelamin: "", tanggal_lahir: "", golongan_darah: "",
-  nomor_kk: "", alamat_ktp: "", bpjs_kesehatan: "", bpjs_ketenagakerjaan: "", nomor_telepon: "",
-  jabatan: "", divisi: "", nama_ibu_kandung: "", nama_pasangan: "", jumlah_anak: "",
-  nomor_telp_keluarga: "", foto_ktp: "", foto_kk: "", foto_bpjs_kesehatan: "",
-  foto_bpjs_ketenagakerjaan: "", pendidikan_terakhir: "", perjanjian_kerja: "PKWTT",
-  status: "AKTIF", tempat_kerja: "Lapangan",
-});
-const form = reactive<Employee>(emptyEmployee());
-const formFields: Array<{
-  key: keyof Employee;
-  label: string;
-  type?: string;
-  options?: string[];
-}> = [
-  { key: "nik", label: "NIK *" },
-  { key: "nama_lengkap", label: "Nama Lengkap *" },
-  { key: "jenis_kelamin", label: "Jenis Kelamin", options: ["Laki-laki", "Perempuan"] },
-  { key: "tanggal_lahir", label: "Tanggal Lahir", type: "date" },
-  { key: "golongan_darah", label: "Golongan Darah", options: ["A", "B", "AB", "O"] },
-  { key: "nomor_kk", label: "Nomor KK" },
-  { key: "bpjs_kesehatan", label: "Nomor BPJS Kesehatan" },
-  { key: "bpjs_ketenagakerjaan", label: "Nomor BPJS Ketenagakerjaan" },
-  { key: "nomor_telepon", label: "Nomor Telepon" },
-  { key: "jabatan", label: "Jabatan" },
-  { key: "divisi", label: "Divisi", options: ["SECURITY", "ENGINEERING", "HOUSEKEEPING", "STAFF"] },
-  { key: "nama_ibu_kandung", label: "Nama Ibu Kandung" },
-  { key: "nama_pasangan", label: "Nama Istri/Suami" },
-  { key: "jumlah_anak", label: "Jumlah Anak", type: "number" },
-  { key: "nomor_telp_keluarga", label: "Nomor Telp Keluarga" },
-  { key: "pendidikan_terakhir", label: "Pendidikan Terakhir", options: ["SD", "SMP", "SMA", "SMK", "D3", "S1", "S2", "S3"] },
-  { key: "perjanjian_kerja", label: "Perjanjian Kerja", options: ["PKWTT", "PKWT"] },
-  { key: "status", label: "Status", options: ["AKTIF", "PENSIUN", "RESIGN"] },
-  { key: "tempat_kerja", label: "Tempat Kerja", options: ["Lapangan", "Kantor"] },
-];
+// Floating Reminder State
+const showAnomalyToast = ref(false);
+const warningEmployeesCount = ref(0);
+const anomalyDetails = ref<string[]>([]);
+const warningSearchTerms = ref<string[]>([]);
+
+// Fungsi Deteksi Peringatan & Anomali Data Karyawan di Database
+async function checkDataAnomalies() {
+  try {
+    const employees = await invoke<Employee[]>("list_employees", { search: "" });
+    
+    // Cukup filter karyawan yang memiliki is_flagged === true
+    const flaggedEmployees = employees.filter((emp) => emp.is_flagged);
+    
+    warningEmployeesCount.value = flaggedEmployees.length;
+
+    if (flaggedEmployees.length > 0) {
+      anomalyDetails.value = [
+        `Terdapat ${flaggedEmployees.length} data karyawan yang perlu diperbaiki/dilengkapi.`
+      ];
+      showAnomalyToast.value = true;
+    } else {
+      showAnomalyToast.value = false;
+    }
+  } catch (err) {
+    console.error("Gagal memeriksa flag data:", err);
+  }
+}
+
+// Handler saat klik tombol "Lihat Data Warning"
+function filterWarningData() {
+  // Cukup aktifkan filter khusus "flagged" di tabel master
+  activeMetricKey.value = "flagged" as any; 
+  masterSearchQuery.value = "";
+  activeTab.value = "master";
+  showAnomalyToast.value = false;
+}
+
+function handleSaved() {
+  refreshKey.value++;
+  void checkDataAnomalies();
+}
 
 function openCreate() {
-  Object.assign(form, emptyEmployee());
-  errorMessage.value = "";
+  employeeToEdit.value = null;
   isModalOpen.value = true;
 }
+
 function openEdit(employee: Employee) {
-  Object.assign(form, employee);
-  errorMessage.value = "";
+  employeeToEdit.value = employee;
   isModalOpen.value = true;
 }
-async function saveEmployee() {
-  isSaving.value = true;
-  errorMessage.value = "";
-  try {
-    await invoke("save_employee", { employee: form });
-    isModalOpen.value = false;
-    refreshKey.value++;
-  } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : String(error);
-  } finally { isSaving.value = false; }
-}
+
 function openImport() { isImportModalOpen.value = true; }
+
 function openMaster() {
   masterSearchQuery.value = "";
   activeMetricKey.value = null;
   activeTab.value = "master";
 }
-function imported() { refreshKey.value++; isImportModalOpen.value = false; openMaster(); }
+
+function imported() { 
+  refreshKey.value++; 
+  isImportModalOpen.value = false; 
+  openMaster(); 
+  void checkDataAnomalies();
+}
+
 function openMasterWithFilter(filterQuery: string) {
   masterSearchQuery.value = filterQuery;
   activeMetricKey.value = null;
   activeTab.value = "master";
 }
+
 function selectMetric(filterKey: MetricFilterKey) {
   activeMetricKey.value = filterKey;
   masterSearchQuery.value = "";
   activeTab.value = "master";
 }
-function clearMetricFilter() {
-  activeMetricKey.value = null;
-}
-function resetMasterSearch() {
-  masterSearchQuery.value = "";
-}
+
+function clearMetricFilter() { activeMetricKey.value = null; }
+function resetMasterSearch() { masterSearchQuery.value = ""; }
+
+// Periksa data saat aplikasi dibuka
+onMounted(() => {
+  void checkDataAnomalies();
+});
+
+watch(refreshKey, () => {
+  void checkDataAnomalies();
+});
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-100 text-slate-900">
-    <header class="border-b border-slate-200 bg-white">
-    <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-      <div class="flex flex-col items-start gap-1">
-        <img 
-          :src="logoUrl" 
-          alt="Logo Apartemen Oasis" 
-          class="h-[13vh] w-auto object-contain"
-        />
-      <h1 class="text-2xl font-bold text-slate-900">Database</h1>
-    </div>
-
-      <div class="flex items-bottom gap-3">
-        <!-- About Button Trigger (Versi Otomatis) -->
-        <button 
-          @click="showAboutModal = true"
-          class="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+  <div class="min-h-screen text-slate-900 bg-gradient-to-br from-[#fef3e2] via-[#fce6bd] to-[#f7d6a0] antialiased">
+    
+    <!-- Floating Reminder Toast Notification (Akan selalu muncul saat app dibuka jika ada warning) -->
+    <Teleport to="body">
+      <Transition name="toast">
+        <div 
+          v-if="showAnomalyToast" 
+          class="fixed top-6 right-6 z-[9999] flex items-start gap-3.5 rounded-2xl bg-slate-900/95 p-4.5 text-white shadow-2xl border border-amber-500/40 backdrop-blur-md max-w-md"
         >
+          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400 text-xl border border-amber-500/30">
+            ⚠️
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between gap-2">
+              <h4 class="text-xs font-bold text-amber-300 uppercase tracking-wider">
+                Pengingat Data Karyawan (Warning)
+              </h4>
+              <button 
+                @click="showAnomalyToast = false" 
+                title="Tutup Notifikasi"
+                class="text-slate-400 hover:text-white transition-colors p-0.5 text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <p class="text-[11px] text-slate-300 mt-1">
+              Ditemukan <strong class="text-amber-300 font-bold">{{ warningEmployeesCount }} data karyawan</strong> yang memerlukan perhatian:
+            </p>
+
+            <ul class="mt-1.5 space-y-1 text-xs text-amber-100/90 list-disc list-inside bg-amber-950/40 p-2 rounded-lg border border-amber-500/20">
+              <li v-for="(detail, index) in anomalyDetails" :key="index" class="truncate">
+                {{ detail }}
+              </li>
+            </ul>
+
+            <div class="mt-3 flex items-center gap-2 pt-2 border-t border-slate-800">
+              <button 
+                @click="filterWarningData"
+                class="rounded-lg bg-amber-500 px-3 py-1.5 text-[11px] font-bold text-slate-950 hover:bg-amber-400 transition-colors shadow-xs cursor-pointer flex items-center gap-1.5"
+              >
+                <span>🔍 Lihat Data Warning</span>
+              </button>
+              <button 
+                @click="showAnomalyToast = false"
+                class="rounded-lg bg-slate-800 px-3 py-1.5 text-[11px] font-semibold text-slate-300 hover:bg-slate-700 transition-colors cursor-pointer"
+              >
+                Nanti Saja
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Header Utama -->
+    <header class="sticky top-0 z-30 border-b border-emerald-900/10 bg-gradient-to-r from-[#0d361f] via-[#115231] to-[#18603b] shadow-lg backdrop-blur-md">
+      <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-3.5">
+        <div class="flex items-center gap-4">
+          <div class="flex items-center justify-center rounded-2xl bg-white/10 p-2 border border-white/10 shadow-inner">
+            <img :src="logoUrl" alt="Logo Apartemen Oasis" class="h-12 w-auto object-contain" />
+          </div>
+          <div>
+            <h1 class="text-xl font-bold text-white flex items-center gap-2">
+              Database Karyawan
+              <span class="rounded-full bg-emerald-400/20 px-2 py-0.5 text-[10px] text-emerald-200 border border-emerald-400/30">
+                Oasis Portal
+              </span>
+            </h1>
+            <p class="text-xs text-emerald-100/70">Sistem Pendataan &amp; Pusat Keputusan Manajemen</p>
+          </div>
+        </div>
+
+        <button @click="showAboutModal = true" class="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2 text-xs font-semibold text-white hover:bg-white/20 cursor-pointer">
           <span>ℹ️ Tentang Aplikasi</span>
-          <span class="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-700 font-mono">
-            v{{ appVersion }}
-          </span>
+          <span class="rounded-lg bg-emerald-950/40 px-2 py-0.5 text-[10px] font-mono">v{{ appVersion }}</span>
         </button>
       </div>
-    </div>
-  </header>
+    </header>
 
-  <AboutModal v-if="showAboutModal" @close="showAboutModal = false" />
+    <AboutModal v-if="showAboutModal" @close="showAboutModal = false" />
+
+    <!-- Content Wrapper -->
     <main class="mx-auto max-w-7xl space-y-6 px-6 py-8">
-      <nav class="flex gap-2 rounded-xl bg-white p-1 shadow-sm">
-        <button class="rounded-lg px-4 py-2 font-medium" :class="activeTab === 'dashboard' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'" @click="activeTab = 'dashboard'; masterSearchQuery = ''">📊 Dashboard &amp; Decision Center</button>
-        <button class="rounded-lg px-4 py-2 font-medium" :class="activeTab === 'master' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'" @click="openMaster">📋 Data Karyawan</button>
+      <nav class="flex items-center gap-1.5 rounded-2xl bg-white/80 p-1.5 shadow-md border border-amber-900/5">
+        <button 
+          class="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all cursor-pointer"
+          :class="activeTab === 'dashboard' ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'" 
+          @click="activeTab = 'dashboard'; masterSearchQuery = ''"
+        >
+          <span>📊 Dashboard &amp; Decision Center</span>
+        </button>
+        <button 
+          class="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all cursor-pointer"
+          :class="activeTab === 'master' ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'" 
+          @click="openMaster"
+        >
+          <span>📋 Master Data Karyawan</span>
+        </button>
       </nav>
-      <DashboardView v-if="activeTab === 'dashboard'" :refresh-key="refreshKey" @import="openImport" @add="openCreate" @open-master="openMaster" @open-master-with-filter="openMasterWithFilter" @select-metric="selectMetric" />
-      <EmployeeTable v-if="activeTab === 'master'" :refresh-key="refreshKey" :initial-search="masterSearchQuery" :active-metric-key="activeMetricKey || undefined" @reset-search="resetMasterSearch" @edit="openEdit" @clear-metric-filter="clearMetricFilter" />
+
+      <DashboardView 
+        v-if="activeTab === 'dashboard'" 
+        :refresh-key="refreshKey" 
+        @import="openImport" 
+        @add="openCreate" 
+        @open-master="openMaster" 
+        @open-master-with-filter="openMasterWithFilter" 
+        @select-metric="selectMetric" 
+      />
+
+      <EmployeeTable 
+        v-if="activeTab === 'master'" 
+        :refresh-key="refreshKey" 
+        :initial-search="masterSearchQuery" 
+        :active-metric-key="activeMetricKey || undefined" 
+        @reset-search="resetMasterSearch" 
+        @edit="openEdit" 
+        @clear-metric-filter="clearMetricFilter" 
+      />
     </main>
-    <div v-if="isImportModalOpen" class="fixed inset-0 z-20 flex items-center justify-center bg-slate-900/50 p-4" @click.self="isImportModalOpen = false">
-      <div class="max-h-[92vh] w-full max-w-6xl overflow-auto rounded-2xl bg-slate-100 p-6 shadow-xl">
-        <div class="mb-4 flex items-center justify-between"><h2 class="text-xl font-bold text-slate-900">Import Data Karyawan</h2><button type="button" class="text-2xl text-slate-400 hover:text-slate-700" aria-label="Tutup import" @click="isImportModalOpen = false">&times;</button></div>
-        <ExcelImporter @saved="imported" />
-      </div>
-    </div>
-    <div v-if="isModalOpen" class="fixed inset-0 z-10 flex items-center justify-center bg-slate-900/50 p-4" @click.self="isModalOpen = false">
-      <form class="max-h-[90vh] w-full max-w-3xl overflow-auto rounded-2xl bg-white p-6 shadow-xl" @submit.prevent="saveEmployee">
-        <div class="flex items-center justify-between"><h2 class="text-xl font-bold">Data Karyawan</h2><button type="button" class="text-2xl text-slate-400" @click="isModalOpen = false">&times;</button></div>
-        <div class="mt-5 grid gap-4 sm:grid-cols-2">
-          <label v-for="field in formFields" :key="field.key" class="text-sm font-medium text-slate-700">
-            {{ field.label }}
-            <select v-if="field.options" v-model="form[field.key]" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal outline-none focus:border-blue-500">
-              <option value="">Pilih {{ field.label.replace(" *", "") }}</option>
-              <option v-for="option in field.options" :key="option" :value="option">{{ option }}</option>
-            </select>
-            <input v-else v-model="form[field.key]" :type="field.type || 'text'" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal outline-none focus:border-blue-500">
-          </label>
-          <label class="text-sm font-medium text-slate-700 sm:col-span-2">Alamat Sesuai KTP<textarea v-model="form.alamat_ktp" rows="2" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal outline-none focus:border-blue-500" /></label>
-          <label v-for="field in [{ key: 'foto_ktp', label: 'URL Foto KTP' }, { key: 'foto_kk', label: 'URL Foto KK' }, { key: 'foto_bpjs_kesehatan', label: 'URL Foto BPJS Kesehatan' }, { key: 'foto_bpjs_ketenagakerjaan', label: 'URL Foto BPJS Ketenagakerjaan' }]" :key="field.key" class="text-sm font-medium text-slate-700 sm:col-span-2">
-            {{ field.label }}<input v-model="form[field.key as keyof Employee]" type="url" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal outline-none focus:border-blue-500">
-          </label>
+
+    <EmployeeModal 
+      :is-open="isModalOpen" 
+      :employee-to-edit="employeeToEdit"
+      @close="isModalOpen = false"
+      @saved="handleSaved"
+    />
+
+    <!-- Modal Import Excel -->
+    <Teleport to="body">
+      <div v-if="isImportModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4" @click.self="isImportModalOpen = false">
+        <div class="max-h-[92vh] w-full max-w-6xl overflow-auto rounded-3xl bg-slate-50 p-6 shadow-2xl space-y-4">
+          <div class="flex items-center justify-between border-b pb-4">
+            <h2 class="text-lg font-bold text-slate-900">Import Data Karyawan</h2>
+            <button type="button" class="text-xl text-slate-400 hover:text-slate-700 cursor-pointer" @click="isImportModalOpen = false">&times;</button>
+          </div>
+          <ExcelImporter @saved="imported" />
         </div>
-        <p v-if="errorMessage" class="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{{ errorMessage }}</p>
-        <div class="mt-6 flex justify-end gap-3"><button type="button" class="rounded-lg border border-slate-300 px-4 py-2" @click="isModalOpen = false">Batal</button><button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white disabled:opacity-50" :disabled="isSaving">{{ isSaving ? "Menyimpan..." : "Simpan Data" }}</button></div>
-      </form>
-    </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
-<style>
-* { box-sizing: border-box; }
-body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
-button, input, textarea { font: inherit; }
+<style scoped>
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateY(-1rem) scale(0.95);
+}
 </style>

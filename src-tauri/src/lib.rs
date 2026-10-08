@@ -125,7 +125,10 @@ fn open_folder_dir(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn list_employees(database: State<'_, Database>, search: Option<String>) -> Result<Vec<Employee>, String> {
+fn list_employees(
+    database: State<'_, Database>,
+    search: Option<String>,
+) -> Result<Vec<Employee>, String> {
     let connection = database.0.lock().map_err(|error| error.to_string())?;
     let pattern = format!("%{}%", search.unwrap_or_default().trim());
     let mut statement = connection
@@ -178,7 +181,8 @@ fn list_employees(database: State<'_, Database>, search: Option<String>) -> Resu
             })
         })
         .map_err(|error| error.to_string())?;
-    rows.collect::<Result<Vec<_>, _>>().map_err(|error| error.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())
 }
 
 fn upsert(connection: &Connection, employee: &Employee) -> rusqlite::Result<()> {
@@ -220,9 +224,14 @@ fn upsert(connection: &Connection, employee: &Employee) -> rusqlite::Result<()> 
 }
 
 #[tauri::command]
-fn upsert_employees(database: State<'_, Database>, employees: Vec<Employee>) -> Result<usize, String> {
+fn upsert_employees(
+    database: State<'_, Database>,
+    employees: Vec<Employee>,
+) -> Result<usize, String> {
     let mut connection = database.0.lock().map_err(|error| error.to_string())?;
-    let transaction = connection.transaction().map_err(|error| error.to_string())?;
+    let transaction = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
     for employee in &employees {
         if employee.nik.trim().is_empty() || employee.nama_lengkap.trim().is_empty() {
             return Err("Setiap baris harus memiliki NIK dan Nama Lengkap.".into());
@@ -259,6 +268,7 @@ async fn export_excel_file(path: String, bytes: Vec<u8>) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
         .setup(|app: &mut tauri::App| {
             let data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
@@ -267,6 +277,7 @@ pub fn run() {
             app.manage(Database(Mutex::new(connection)));
             Ok(())
         })
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_opener::init())

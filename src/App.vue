@@ -9,6 +9,9 @@ import AboutModal from "./components/AboutModal.vue";
 import tauriConfig from "../src-tauri/tauri.conf.json";
 import type { Employee } from "./types";
 import logoUrl from "../src/assets/LOGO_OASIS_V2.png";
+import { check } from '@tauri-apps/plugin-updater';
+import { relaunch } from '@tauri-apps/plugin-process';
+
 
 type Tab = "dashboard" | "master";
 const activeTab = ref<Tab>("dashboard");
@@ -27,6 +30,48 @@ const appVersion = tauriConfig.version;
 const showAnomalyToast = ref(false);
 const warningEmployeesCount = ref(0);
 const anomalyDetails = ref<string[]>([]);
+
+async function checkForUpdates() {
+  try {
+    const update = await check();
+    if (update) {
+      console.log(`Update ditemukan: ${update.version}`);
+      // Minta konfirmasi pengguna sebelum mengunduh & restart
+      const yes = confirm(`Versi baru v${update.version} telah tersedia!\n\nApakah Anda ingin memperbarui aplikasi sekarang?`);
+      if (yes) {
+        let downloaded = 0;
+        let contentLength = 0;
+
+        // Unduh dan pasang pembaruan
+        await update.downloadAndInstall((event) => {
+          switch (event.event) {
+            case 'Started':
+              contentLength = event.data.contentLength || 0;
+              console.log(`Mulai mengunduh ${contentLength} bytes`);
+              break;
+            case 'Progress':
+              downloaded += event.data.chunkLength;
+              console.log(`Telah diunduh: ${downloaded}/${contentLength}`);
+              break;
+            case 'Finished':
+              console.log('Unduhan selesai, menyiapkan restart...');
+              break;
+          }
+        });
+
+        // Restart aplikasi otomatis setelah update terpasang
+        await relaunch();
+      }
+    }
+  } catch (error) {
+    console.error('Gagal memeriksa update:', error);
+  }
+}
+
+onMounted(() => {
+  void checkDataAnomalies();
+  void checkForUpdates(); // <--- Jalankan pemeriksaan saat aplikasi dibuka
+});
 
 // Fungsi Deteksi Peringatan & Anomali Data Karyawan di Database
 async function checkDataAnomalies() {
@@ -172,7 +217,7 @@ watch(refreshKey, () => {
     </Teleport>
 
     <!-- Header Utama -->
-    <header class="sticky top-0 z-30 border-b border-emerald-900/10 bg-gradient-to-r from-[#0d361f] via-[#115231] to-[#18603b] shadow-lg backdrop-blur-md">
+    <header class="top-0 z-30 border-b border-emerald-900/10 bg-gradient-to-r from-[#0d361f] via-[#115231] to-[#18603b] shadow-lg backdrop-blur-md">
       <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-3.5">
         <div class="flex items-center gap-4">
           <div class="flex items-center justify-center rounded-2xl bg-white/10 p-2 border border-white/10 shadow-inner">

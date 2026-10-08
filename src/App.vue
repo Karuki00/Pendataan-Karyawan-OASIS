@@ -27,7 +27,6 @@ const appVersion = tauriConfig.version;
 const showAnomalyToast = ref(false);
 const warningEmployeesCount = ref(0);
 const anomalyDetails = ref<string[]>([]);
-const warningSearchTerms = ref<string[]>([]);
 
 // Fungsi Deteksi Peringatan & Anomali Data Karyawan di Database
 async function checkDataAnomalies() {

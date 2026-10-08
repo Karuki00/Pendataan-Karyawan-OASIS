@@ -5,8 +5,8 @@ import type { Employee } from "../types";
 defineProps<{ employee: Employee }>();
 const emit = defineEmits<{ close: [] }>();
 
-function value(value: string | null | undefined): string {
-  return value?.trim() || "-";
+function value(val: string | null | undefined): string {
+  return val?.trim() || "-";
 }
 
 async function openDocument(url: string | null | undefined) {
@@ -49,8 +49,9 @@ async function openDocument(url: string | null | undefined) {
             <div><dt class="text-xs text-slate-500">Jabatan</dt><dd>{{ value(employee.jabatan) }}</dd></div>
             <div><dt class="text-xs text-slate-500">Perjanjian Kerja</dt><dd>{{ value(employee.perjanjian_kerja || "PKWTT") }}</dd></div>
             <div><dt class="text-xs text-slate-500">Status</dt><dd>{{ value(employee.status || "AKTIF") }}</dd></div>
-            <div><dt class="text-xs text-slate-500">Join Date</dt><dd>{{ value(employee.timestamp) }}</dd></div>
-            <div><dt class="text-xs text-slate-500">Tempat Kerja</dt><dd>{{ value(employee.tempat_kerja) }}</dd></div>
+            <div><dt class="text-xs text-slate-500">Join Date</dt><dd>{{ value(employee.join_date) }}</dd></div>
+            <div><dt class="text-xs text-slate-500">Tanggal Kartap</dt><dd>{{ value(employee.tanggal_kartap) }}</dd></div>
+            <div class="sm:col-span-2"><dt class="text-xs text-slate-500">Tempat Kerja</dt><dd>{{ value(employee.tempat_kerja) }}</dd></div>
           </dl>
         </section>
 
@@ -59,7 +60,7 @@ async function openDocument(url: string | null | undefined) {
           <dl class="grid gap-3 sm:grid-cols-2">
             <div><dt class="text-xs text-slate-500">Nama Ibu Kandung</dt><dd>{{ value(employee.nama_ibu_kandung) }}</dd></div>
             <div><dt class="text-xs text-slate-500">Pasangan (Istri/Suami)</dt><dd>{{ value(employee.nama_pasangan) }}</dd></div>
-            <div><dt class="text-xs text-slate-500">Jumlah Anak</dt><dd>{{ value(employee.jumlah_anak) }}</dd></div>
+            <div><dt class="text-xs text-slate-500">Jumlah Anak</dt><dd>{{ value(String(employee.jumlah_anak ?? "-")) }}</dd></div>
             <div><dt class="text-xs text-slate-500">No. Telp Keluarga</dt><dd>{{ value(employee.nomor_telp_keluarga) }}</dd></div>
           </dl>
         </section>

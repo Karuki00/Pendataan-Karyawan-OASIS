@@ -2,6 +2,7 @@
   "productName": "Pendataan Karyawan OASIS",
   "version": "1.1.0",
   "plugins": {
+    "createUpdaterArtifacts": true,
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNERTZFNEE2Mjc0QkIzOTYKUldTV3Mwc25wdVRtUGVBMXVLazYrK2EzNjlzZjZuMCtZTEhxR2NyYnZ5MHh1QjkweUhrc3ZPZVUK",
       "endpoints": [

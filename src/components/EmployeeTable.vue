@@ -247,7 +247,6 @@ async function confirmAndExport() {
           "Foto KK": emp.foto_kk || "-",
           "Foto BPJS Kesehatan": emp.foto_bpjs_kesehatan || "-",
           "Foto BPJS Ketenagakerjaan": emp.foto_bpjs_ketenagakerjaan || "-",
-          "Ada Anomali/Warning": emp.is_flagged ? "YA" : "TIDAK",
         };
       }
 

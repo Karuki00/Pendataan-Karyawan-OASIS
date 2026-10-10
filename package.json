@@ -1,7 +1,7 @@
 {
   "name": "oasis-karyawan-app",
   "private": true,
-  "version": "1.0.7",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -1,6 +1,6 @@
 [package]
 name = "Pendataan-Karyawan-OASIS"
-version = "1.0.8"
+version = "1.1.0"
 description = "A Tauri App"
 authors = ["Karuki"]
 edition = "2021"
@@ -27,7 +27,9 @@ tauri-plugin-dialog = "2"
 rusqlite = { version = "0.32", features = ["bundled"] }
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
-
+chrono = { version = "0.4", features = ["serde"] }
+calamine = "0.26"
+rust_xlsxwriter = "0.99.1"
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]

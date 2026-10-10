@@ -4,8 +4,10 @@ use std::fs;
 use std::process::Command;
 use std::sync::Mutex;
 use tauri::{Manager, State};
-
-struct Database(Mutex<Connection>);
+use commands::attendance::{get_or_create_periode, reset_database, list_staff_employees_for_absensi, toggle_employee_active_status, initialize_attendance_schema, update_absensi_cell};
+use commands::excel_exporter::{export_rekap_absen_excel_1to1};
+use commands::leave::{get_rekap_cuti_tahun, update_saldo_cuti_karyawan};
+pub struct Database(pub Mutex<Connection>);
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Employee {
@@ -37,6 +39,15 @@ pub struct Employee {
     pub status: Option<String>,
     pub tempat_kerja: Option<String>,
     pub is_flagged: Option<bool>,
+}
+
+pub mod models {
+    pub mod attendance;
+}
+pub mod commands {
+    pub mod attendance;
+    pub mod excel_exporter;
+    pub mod leave;
 }
 
 fn compute_is_flagged(emp: &Employee) -> bool {
@@ -273,7 +284,10 @@ pub fn run() {
             let data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
             let connection = Connection::open(data_dir.join("oasis-karyawan.sqlite"))?;
+            
             initialize_schema(&connection)?;
+            initialize_attendance_schema(&connection)?;// <-- Added Attendance Schema
+            
             app.manage(Database(Mutex::new(connection)));
             Ok(())
         })
@@ -287,7 +301,17 @@ pub fn run() {
             save_employee,
             delete_employee,
             export_excel_file,
-            open_folder_dir
+            open_folder_dir,
+            // --- Attendance Handlers ---
+            get_or_create_periode,
+            update_absensi_cell,
+            list_staff_employees_for_absensi,
+            toggle_employee_active_status,
+            export_rekap_absen_excel_1to1,
+            reset_database,
+
+            get_rekap_cuti_tahun,
+            update_saldo_cuti_karyawan
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

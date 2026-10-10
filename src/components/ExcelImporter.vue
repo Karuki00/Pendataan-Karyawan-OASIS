@@ -100,7 +100,6 @@ function parseStatus(rawStatus: unknown): string {
   const status = String(rawStatus).trim().toUpperCase();
   if (status.includes("PENSIUN")) return "PENSIUN";
   if (status.includes("RESIGN") || status.includes("KELUAR")) return "RESIGN";
-  if (status.includes("AKTIF")) return "AKTIF";
   return status;
 }
 

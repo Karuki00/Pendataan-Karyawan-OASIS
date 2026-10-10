@@ -3,6 +3,7 @@ import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
 // @ts-expect-error type error without @types/node package
 import process from "node:process";
+
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
@@ -28,6 +29,23 @@ export default defineConfig(() => ({
     watch: {
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
+    },
+  },
+
+  // 4. Build optimizations to split vendor chunks and suppress size warnings
+  build: {
+    chunkSizeWarningLimit: 1000, // Raises warning threshold from 500 kB to 1000 kB
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules")) {
+            if (id.includes("vue")) {
+              return "vendor-vue";
+            }
+            return "vendor"; // Isolates other npm packages into a shared vendor chunk
+          }
+        },
+      },
     },
   },
 }));

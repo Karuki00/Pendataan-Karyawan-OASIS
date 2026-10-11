@@ -4,9 +4,14 @@ use std::fs;
 use std::process::Command;
 use std::sync::Mutex;
 use tauri::{Manager, State};
-use commands::attendance::{get_or_create_periode, reset_database, list_staff_employees_for_absensi, toggle_employee_active_status, initialize_attendance_schema, update_absensi_cell};
-use commands::excel_exporter::{export_rekap_absen_excel_1to1};
+
+use commands::attendance::{
+    get_or_create_periode, initialize_attendance_schema, list_staff_employees_for_absensi,
+    reset_database, toggle_employee_active_status, update_absensi_cell,
+};
+use commands::excel_exporter::export_rekap_absen_excel_1to1;
 use commands::leave::{get_rekap_cuti_tahun, update_saldo_cuti_karyawan};
+
 pub struct Database(pub Mutex<Connection>);
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -43,11 +48,14 @@ pub struct Employee {
 
 pub mod models {
     pub mod attendance;
+    pub mod leave;
 }
+
 pub mod commands {
     pub mod attendance;
     pub mod excel_exporter;
     pub mod leave;
+    pub mod leave_service;
 }
 
 fn compute_is_flagged(emp: &Employee) -> bool {
@@ -56,19 +64,22 @@ fn compute_is_flagged(emp: &Employee) -> bool {
     let bpjs_kes = emp.bpjs_kesehatan.as_deref().unwrap_or("").trim();
     let bpjs_tk = emp.bpjs_ketenagakerjaan.as_deref().unwrap_or("").trim();
 
-    // Condition 1: NIK bukan 16 digit angka
     let invalid_nik = nik.len() != 16 || !nik.chars().all(|c| c.is_ascii_digit());
-
-    // Condition 2: Nomor KK diisi tetapi bukan 16 digit angka
     let invalid_kk = !kk.is_empty() && (kk.len() != 16 || !kk.chars().all(|c| c.is_ascii_digit()));
-
-    // Condition 3: BPJS belum lengkap
     let missing_bpjs = bpjs_kes.is_empty() || bpjs_tk.is_empty();
 
     invalid_nik || invalid_kk || missing_bpjs
 }
 
 fn initialize_schema(connection: &Connection) -> rusqlite::Result<()> {
+    // Enable WAL Mode & Fast Synchronous Mode for high performance desktop SQLite
+    connection.execute_batch(
+        "PRAGMA journal_mode = WAL;
+         PRAGMA synchronous = NORMAL;
+         PRAGMA foreign_keys = ON;",
+    )?;
+
+    // 1. Create Base Master Karyawan Table
     connection.execute_batch(
         "CREATE TABLE IF NOT EXISTS master_karyawan (
           nik TEXT PRIMARY KEY NOT NULL,
@@ -102,6 +113,35 @@ fn initialize_schema(connection: &Connection) -> rusqlite::Result<()> {
         );",
     )?;
 
+    // 2. Create Saldo Cuti Table
+    connection.execute_batch(
+        "CREATE TABLE IF NOT EXISTS saldo_cuti (
+          nik TEXT NOT NULL,
+          tahun INTEGER NOT NULL,
+          jatah_awal INTEGER NOT NULL DEFAULT 12,
+          cuti_bersama INTEGER NOT NULL DEFAULT 6,
+          PRIMARY KEY (nik, tahun)
+        );",
+    )?;
+
+    // 3. Create Libur Nasional Table (Public Holidays)
+    connection.execute_batch(
+        "CREATE TABLE IF NOT EXISTS libur_nasional (
+          tanggal TEXT PRIMARY KEY NOT NULL,
+          keterangan TEXT NOT NULL
+        );",
+    )?;
+
+    // 4. Performance Optimization Indexes
+    connection.execute_batch(
+        "CREATE INDEX IF NOT EXISTS idx_karyawan_search 
+         ON master_karyawan(nama_lengkap COLLATE NOCASE, status, divisi);
+         
+         CREATE INDEX IF NOT EXISTS idx_saldo_cuti_nik_tahun 
+         ON saldo_cuti(nik, tahun);",
+    )?;
+
+    // 5. Safe Table Migrations
     for (column, definition) in [
         ("join_date", "TEXT"),
         ("tanggal_kartap", "TEXT"),
@@ -112,13 +152,15 @@ fn initialize_schema(connection: &Connection) -> rusqlite::Result<()> {
             [column],
             |row| row.get(0),
         )?;
+
         if !exists {
-            connection.execute(
-                &format!("ALTER TABLE master_karyawan ADD COLUMN {column} {definition}"),
-                [],
-            )?;
+            let alter_query = format!("ALTER TABLE master_karyawan ADD COLUMN {column} {definition}");
+            if let Err(err) = connection.execute(&alter_query, []) {
+                eprintln!("Skipping column addition for {}: {}", column, err);
+            }
         }
     }
+
     Ok(())
 }
 
@@ -142,8 +184,9 @@ fn list_employees(
 ) -> Result<Vec<Employee>, String> {
     let connection = database.0.lock().map_err(|error| error.to_string())?;
     let pattern = format!("%{}%", search.unwrap_or_default().trim());
+
     let mut statement = connection
-        .prepare(
+        .prepare_cached(
             "SELECT nik, timestamp, join_date, tanggal_kartap, nama_lengkap, jenis_kelamin, tanggal_lahir,
                     golongan_darah, nomor_kk, alamat_ktp, bpjs_kesehatan,
                     bpjs_ketenagakerjaan, nomor_telepon, jabatan, divisi,
@@ -157,6 +200,7 @@ fn list_employees(
              ORDER BY nama_lengkap COLLATE NOCASE",
         )
         .map_err(|error| error.to_string())?;
+
     let rows = statement
         .query_map([pattern], |row| {
             let flagged_int: i32 = row.get(27)?;
@@ -192,6 +236,7 @@ fn list_employees(
             })
         })
         .map_err(|error| error.to_string())?;
+
     rows.collect::<Result<Vec<_>, _>>()
         .map_err(|error| error.to_string())
 }
@@ -199,7 +244,7 @@ fn list_employees(
 fn upsert(connection: &Connection, employee: &Employee) -> rusqlite::Result<()> {
     let is_flagged_val = if compute_is_flagged(employee) { 1 } else { 0 };
 
-    connection.execute(
+    let mut stmt = connection.prepare_cached(
         "INSERT INTO master_karyawan (
           nik, timestamp, join_date, tanggal_kartap, nama_lengkap, jenis_kelamin, tanggal_lahir, golongan_darah,
           nomor_kk, alamat_ktp, bpjs_kesehatan, bpjs_ketenagakerjaan, nomor_telepon,
@@ -221,16 +266,18 @@ fn upsert(connection: &Connection, employee: &Employee) -> rusqlite::Result<()> 
           pendidikan_terakhir=excluded.pendidikan_terakhir,
           perjanjian_kerja=excluded.perjanjian_kerja, status=excluded.status,
           tempat_kerja=excluded.tempat_kerja, is_flagged=excluded.is_flagged",
-        params![
-            employee.nik, employee.timestamp, employee.join_date, employee.tanggal_kartap,
-            employee.nama_lengkap, employee.jenis_kelamin, employee.tanggal_lahir, employee.golongan_darah, employee.nomor_kk, employee.alamat_ktp,
-            employee.bpjs_kesehatan, employee.bpjs_ketenagakerjaan, employee.nomor_telepon,
-            employee.jabatan, employee.divisi, employee.nama_ibu_kandung, employee.nama_pasangan,
-            employee.jumlah_anak, employee.nomor_telp_keluarga, employee.foto_ktp, employee.foto_kk,
-            employee.foto_bpjs_kesehatan, employee.foto_bpjs_ketenagakerjaan, employee.pendidikan_terakhir,
-            employee.perjanjian_kerja, employee.status, employee.tempat_kerja, is_flagged_val
-        ],
     )?;
+
+    stmt.execute(params![
+        employee.nik, employee.timestamp, employee.join_date, employee.tanggal_kartap,
+        employee.nama_lengkap, employee.jenis_kelamin, employee.tanggal_lahir, employee.golongan_darah, employee.nomor_kk, employee.alamat_ktp,
+        employee.bpjs_kesehatan, employee.bpjs_ketenagakerjaan, employee.nomor_telepon,
+        employee.jabatan, employee.divisi, employee.nama_ibu_kandung, employee.nama_pasangan,
+        employee.jumlah_anak, employee.nomor_telp_keluarga, employee.foto_ktp, employee.foto_kk,
+        employee.foto_bpjs_kesehatan, employee.foto_bpjs_ketenagakerjaan, employee.pendidikan_terakhir,
+        employee.perjanjian_kerja, employee.status, employee.tempat_kerja, is_flagged_val
+    ])?;
+
     Ok(())
 }
 
@@ -243,12 +290,14 @@ fn upsert_employees(
     let transaction = connection
         .transaction()
         .map_err(|error| error.to_string())?;
+
     for employee in &employees {
         if employee.nik.trim().is_empty() || employee.nama_lengkap.trim().is_empty() {
             return Err("Setiap baris harus memiliki NIK dan Nama Lengkap.".into());
         }
         upsert(&transaction, employee).map_err(|error| error.to_string())?;
     }
+
     transaction.commit().map_err(|error| error.to_string())?;
     Ok(employees.len())
 }
@@ -284,10 +333,10 @@ pub fn run() {
             let data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
             let connection = Connection::open(data_dir.join("oasis-karyawan.sqlite"))?;
-            
+
             initialize_schema(&connection)?;
-            initialize_attendance_schema(&connection)?;// <-- Added Attendance Schema
-            
+            initialize_attendance_schema(&connection)?;
+
             app.manage(Database(Mutex::new(connection)));
             Ok(())
         })
@@ -309,7 +358,7 @@ pub fn run() {
             toggle_employee_active_status,
             export_rekap_absen_excel_1to1,
             reset_database,
-
+            // --- Leave Handlers ---
             get_rekap_cuti_tahun,
             update_saldo_cuti_karyawan
         ])

@@ -1,0 +1,11 @@
+{
+  "version": "1.1.0",
+  "notes": "Version 1.1.0 update.",
+  "pub_date": "2026-10-10T23:30:00Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTV3Mwc25wdVRtUFJFMzFQbHVVVWJxK2lXMDZTZ1laQzA4aFFTUWlqdFlER0g0Zkc3a0JRMXBKYkYrRFBKVXgrcSt2NnJUU0lCYUhkQ0VLYlF2UVF2TWkweHNLZEYzTlFBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxNjUwMDQyCWZpbGU6UGVuZGF0YWFuIEthcnlhd2FuIE9BU0lTXzEuMS4wX3g2NC1zZXR1cC5leGUJdmVyc2lvbjoxLjEuMAplU29GRkVvQUJCdnZrUmVLb3IvelI5QlJ2WnR5ODkxOUtkcTNleHpIRVdKaFJzKzFOTmVSMjV6YkJ3NEMvMk95aUxmS0pmMkl6MzRUNFRaaWdRVzVDQT09Cg==",
+      "url": "https://github.com/Karuki00/Pendataan-Karyawan-OASIS/releases/download/v1.1.0/Pendataan.Karyawan.OASIS_1.1.0_x64-setup.exe"
+    }
+  }
+}

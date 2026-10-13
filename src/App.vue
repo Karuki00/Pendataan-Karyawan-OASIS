@@ -40,17 +40,25 @@ const { showAnomalyToast, warningEmployeesCount, anomalyDetails, checkDataAnomal
 async function bootstrapApp() {
   try {
     loadingStatus.value = "Memeriksa integritas data & anomali...";
-    loadingProgress.value = 40;
+    loadingProgress.value = 30;
     await checkDataAnomalies();
 
     loadingStatus.value = "Memeriksa pembaruan aplikasi...";
-    loadingProgress.value = 75;
-    await checkForUpdates();
+    loadingProgress.value = 60;
+
+    // Automatically check, download, install, and relaunch if an update exists
+    const isUpdating = await checkForUpdates(true, (progress, statusText) => {
+      loadingStatus.value = statusText;
+      // Scale update progress smoothly from 60% to 100% on the splash screen
+      loadingProgress.value = 60 + Math.round((progress / 100) * 40);
+    });
+
+    // If an update was triggered, relaunch is handled inside useUpdater
+    if (isUpdating) return;
 
     loadingStatus.value = "Menyiapkan antarmuka...";
     loadingProgress.value = 100;
-    
-    // Brief smooth delay before hiding loading screen
+
     await new Promise((resolve) => setTimeout(resolve, 300));
   } catch (error) {
     console.error("Gagal melakukan inisialisasi aplikasi:", error);

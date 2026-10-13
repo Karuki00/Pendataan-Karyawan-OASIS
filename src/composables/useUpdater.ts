@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { check } from '@tauri-apps/plugin-updater';
+import { check, type Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 
 export function useUpdater() {
@@ -9,7 +9,14 @@ export function useUpdater() {
   const downloadProgress = ref(0);
   const newVersion = ref('');
 
-  async function checkForUpdates(silent = true) {
+  /**
+   * Checks for available updates.
+   * If autoApply is true, it immediately downloads, installs, and restarts the app.
+   */
+  async function checkForUpdates(
+    autoApply = true,
+    onProgress?: (progress: number, statusText: string) => void
+  ): Promise<boolean> {
     isChecking.value = true;
     try {
       const update = await check();
@@ -17,29 +24,27 @@ export function useUpdater() {
         updateAvailable.value = true;
         newVersion.value = update.version;
 
-        if (!silent) {
-          const confirmUpdate = window.confirm(
-            `Versi baru (${update.version}) telah tersedia!\n\nApakah Anda ingin mengunduh dan memasang pembaruan sekarang?`
-          );
-
-          if (confirmUpdate) {
-            await downloadAndInstallUpdate(update);
-          }
+        if (autoApply) {
+          await downloadAndInstallUpdate(update, onProgress);
+          return true;
         }
-      } else if (!silent) {
-        alert('Aplikasi sudah menggunakan versi terbaru.');
       }
+      return false;
     } catch (err) {
       console.error('Gagal memeriksa pembaruan:', err);
-      if (!silent) {
-        alert(`Gagal memeriksa pembaruan: ${err}`);
-      }
+      return false;
     } finally {
       isChecking.value = false;
     }
   }
 
-  async function downloadAndInstallUpdate(updateObj?: any) {
+  /**
+   * Downloads and applies the update with live progress updates.
+   */
+  async function downloadAndInstallUpdate(
+    updateObj?: Update | null,
+    onProgress?: (progress: number, statusText: string) => void
+  ) {
     try {
       const activeUpdate = updateObj || (await check());
       if (!activeUpdate?.available) return;
@@ -50,6 +55,10 @@ export function useUpdater() {
       let downloadedBytes = 0;
       let totalBytes = 0;
 
+      if (onProgress) {
+        onProgress(0, `Mengunduh pembaruan v${activeUpdate.version}...`);
+      }
+
       await activeUpdate.downloadAndInstall((event: any) => {
         switch (event.event) {
           case 'Started':
@@ -58,23 +67,33 @@ export function useUpdater() {
           case 'Progress':
             downloadedBytes += event.data.chunkLength || 0;
             if (totalBytes > 0) {
-              downloadProgress.value = Math.min(
+              const pct = Math.min(
                 100,
                 Math.round((downloadedBytes / totalBytes) * 100)
               );
+              downloadProgress.value = pct;
+              if (onProgress) {
+                onProgress(
+                  pct,
+                  `Mengunduh pembaruan v${activeUpdate.version} (${pct}%)...`
+                );
+              }
             }
             break;
           case 'Finished':
             downloadProgress.value = 100;
+            if (onProgress) {
+              onProgress(100, 'Memasang pembaruan & memuat ulang...');
+            }
             break;
         }
       });
 
-      alert('Pembaruan berhasil diunduh! Aplikasi akan dimuat ulang.');
+      // Automatically relaunch app after installation
       await relaunch();
     } catch (err) {
       console.error('Gagal memasang pembaruan:', err);
-      alert(`Gagal memasang pembaruan: ${err}`);
+      throw err;
     } finally {
       isDownloading.value = false;
     }

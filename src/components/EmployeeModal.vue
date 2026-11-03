@@ -146,7 +146,11 @@ async function saveEmployee() {
   errorMessage.value = "";
 
   try {
-    await invoke("save_employee", { employee: form });
+    const employeeToSave: Employee = {
+      ...form,
+      jumlah_anak: form.jumlah_anak == null ? "" : String(form.jumlah_anak),
+    };
+    await invoke("save_employee", { employee: employeeToSave });
     
     const warningSummary = warnings.length > 0 
       ? `Data tersimpan dengan catatan: ${warnings.join(" ")}`

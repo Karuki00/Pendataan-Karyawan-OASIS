@@ -9,6 +9,9 @@ const { selectedLeaveYear } = useCutiStore();
 const leaveData = ref<LeaveSummary[]>([]);
 const isLoading = ref(false);
 
+// ⬇️ State reaktif untuk pilihan Divisi (Default: staff)
+const selectedDivision = ref('staff');
+
 // Modal state
 const isModalOpen = ref(false);
 const editingEmployee = ref<LeaveSummary | null>(null);
@@ -18,8 +21,10 @@ const monthHeaders = ['JAN', 'FEB', 'MAR', 'APR', 'MEI', 'JUN', 'JUL', 'AGS', 'S
 async function loadLeaveData() {
   isLoading.value = true;
   try {
+    // Meneruskan parameter tahun dan divisi ke backend Rust Tauri
     const res = await invoke<LeaveSummary[]>('get_rekap_cuti_tahun', {
       tahun: selectedLeaveYear.value,
+      divisi: selectedDivision.value,
     });
     leaveData.value = res;
   } catch (err) {
@@ -49,7 +54,8 @@ async function handleSaveQuota(payload: { nik: string; jatahAwal: number; cutiBe
   }
 }
 
-watch(selectedLeaveYear, () => {
+// Watcher untuk memuat ulang data ketika Tahun ATAU Divisi berubah
+watch([selectedLeaveYear, selectedDivision], () => {
   void loadLeaveData();
 });
 
@@ -63,12 +69,31 @@ onMounted(() => {
     <!-- Header Controls -->
     <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-4">
       <div>
-        <h2 class="text-base font-bold text-slate-900">Rekapitulasi Cuti Staff Pengelola</h2>
+        <h2 class="text-base font-bold text-slate-900 uppercase">
+          Rekapitulasi Cuti {{ selectedDivision === 'staff' ? 'Staff & Pengelola' : selectedDivision }}
+        </h2>
         <p class="text-xs text-slate-500">Apartemen Mitra Oasis Sarana - Tahun {{ selectedLeaveYear }}</p>
       </div>
 
-      <!-- Modular Future-Proof Year Selector -->
-      <YearSelector v-model="selectedLeaveYear" />
+      <!-- Controls Group (Dropdown Divisi & Year Selector) -->
+      <div class="flex flex-wrap items-center gap-3">
+        <!-- Dropdown Pilih Divisi -->
+        <div class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+          <span class="text-xs font-bold text-slate-500">Divisi:</span>
+          <select
+            v-model="selectedDivision"
+            class="bg-transparent text-xs font-bold text-slate-800 border-0 focus:outline-none cursor-pointer"
+          >
+            <option value="staff">Staff & Pengelola</option>
+            <option value="security">Security</option>
+            <option value="housekeeping">Housekeeping</option>
+            <option value="engineering">Engineering</option>
+          </select>
+        </div>
+
+        <!-- Modular Future-Proof Year Selector -->
+        <YearSelector v-model="selectedLeaveYear" />
+      </div>
     </div>
 
     <!-- Table Content -->
@@ -77,7 +102,7 @@ onMounted(() => {
     </div>
 
     <div v-else-if="leaveData.length === 0" class="p-8 text-center text-slate-400 bg-white rounded-2xl border shadow-xs">
-      Tidak ada data karyawan aktif untuk rekap cuti.
+      Tidak ada data karyawan aktif untuk rekap cuti pada divisi ini di tahun {{ selectedLeaveYear }}.
     </div>
 
     <div v-else class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">

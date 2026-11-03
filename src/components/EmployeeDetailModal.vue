@@ -1,13 +1,21 @@
 <script setup lang="ts">
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { Employee } from "../types";
+import { computed } from "vue";
 
-defineProps<{ employee: Employee }>();
+const props = defineProps<{ employee: Employee }>();
 const emit = defineEmits<{ close: [] }>();
 
 function value(val: string | null | undefined): string {
   return val?.trim() || "-";
 }
+
+// Helper untuk mendeteksi apakah karyawan termasuk divisi/jabatan Security
+const isSecurity = computed(() => {
+  const div = String(props.employee.divisi || "").trim().toUpperCase();
+  const job = String(props.employee.jabatan || "").trim().toUpperCase();
+  return div.includes("SECURITY") || div.includes("KEAMANAN") || job.includes("SECURITY") || job.includes("SATPAM");
+});
 
 async function openDocument(url: string | null | undefined) {
   if (url) await openUrl(url);
@@ -51,8 +59,15 @@ async function openDocument(url: string | null | undefined) {
             <div><dt class="text-xs text-slate-500">Status</dt><dd>{{ value(employee.status || "AKTIF") }}</dd></div>
             <div><dt class="text-xs text-slate-500">Join Date</dt><dd>{{ value(employee.join_date) }}</dd></div>
             <div><dt class="text-xs text-slate-500">Tanggal Kartap</dt><dd>{{ value(employee.tanggal_kartap) }}</dd></div>
-            <div class="sm:col-span-2"><dt class="text-xs text-slate-500">Tempat Kerja</dt><dd>{{ value(employee.tempat_kerja) }}</dd></div>
+            <!-- Tampil dinamis khusus Security -->
+            <div v-if="isSecurity"><dt class="text-xs text-slate-500">Regu Security</dt><dd class="font-semibold text-blue-700">{{ value(employee.regu) }}</dd></div>
+            <div :class="isSecurity ? '' : 'sm:col-span-2'"><dt class="text-xs text-slate-500">Tempat Kerja</dt><dd>{{ value(employee.tempat_kerja) }}</dd></div>
           </dl>
+        </section>
+
+        <section class="rounded-xl border border-amber-200 bg-amber-50/60 p-5 md:col-span-2">
+          <h3 class="mb-2 font-semibold text-slate-900">Catatan Karyawan</h3>
+          <p class="whitespace-pre-wrap text-sm text-slate-700">{{ value(employee.catatan) }}</p>
         </section>
 
         <section class="rounded-xl border border-slate-200 bg-slate-50 p-5">

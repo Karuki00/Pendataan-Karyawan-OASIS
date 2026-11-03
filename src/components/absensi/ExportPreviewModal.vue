@@ -1,19 +1,22 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
 import type { Employee } from '../../types';
 import PreviewSheetAbsen from './PreviewSheetAbsen.vue';
 import PreviewSheetCuti from './PreviewSheetCuti.vue';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   isOpen: boolean;
   selectedYear: number;
   selectedMonth: number;
   employees: Employee[];
   attendanceMap: Record<string, string>;
   keteranganMap?: Record<string, string>;
-}>();
+  division?: string; // 'hr', 'security', 'housekeeping', 'engineering'
+}>(), {
+  division: 'hr',
+});
 
 const emit = defineEmits<{
   (e: 'close'): void;
@@ -21,6 +24,10 @@ const emit = defineEmits<{
 
 const isExporting = ref(false);
 const activeSheetTab = ref<'absen' | 'cuti'>('absen');
+
+const isHrDivision = computed(() => {
+  return props.division.toLowerCase() === 'hr';
+});
 
 const monthNames = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
@@ -30,7 +37,8 @@ const monthNames = [
 async function triggerExcelExport() {
   try {
     const monthName = monthNames[props.selectedMonth - 1];
-    const defaultFileName = `Rekap_Absen_Pengelola_${monthName}_${props.selectedYear}.xlsx`;
+    const divPrefix = isHrDivision.value ? 'HR' : props.division.toUpperCase();
+    const defaultFileName = `Rekap_Absen_${divPrefix}_${monthName}_${props.selectedYear}.xlsx`;
 
     const filePath = await save({
       defaultPath: defaultFileName,
@@ -48,7 +56,11 @@ async function triggerExcelExport() {
       month: props.selectedMonth,
     });
 
-    alert('File Excel Rekap Absensi & Rekap Cuti berhasil diekspor!');
+    const successMsg = isHrDivision.value 
+      ? 'File Excel Rekap Absensi & Rekap Cuti berhasil diekspor!' 
+      : 'File Excel Rekap Absensi berhasil diekspor!';
+
+    alert(successMsg);
     emit('close');
   } catch (err) {
     console.error('Export Error:', err);
@@ -57,6 +69,7 @@ async function triggerExcelExport() {
     isExporting.value = false;
   }
 }
+
 </script>
 
 <template>
@@ -69,11 +82,11 @@ async function triggerExcelExport() {
           <div>
             <h3 class="text-base font-bold text-slate-900">Preview Export Workbook (.xlsx)</h3>
             <p class="text-xs text-slate-500">
-              Periode: {{ monthNames[selectedMonth - 1] }} {{ selectedYear }}
+              Periode: {{ monthNames[selectedMonth - 1] }} {{ selectedYear }} | Divisi: {{ division.toUpperCase() }}
             </p>
           </div>
 
-          <!-- Sheet Switcher Tabs -->
+          <!-- Sheet Switcher Tabs (Hanya tampilkan Rekap Cuti jika divisi HR) -->
           <div class="flex items-center gap-1.5 p-1 bg-slate-200/70 rounded-2xl">
             <button
               type="button"
@@ -85,6 +98,7 @@ async function triggerExcelExport() {
               <span>Sheet 1: Rekap Absen</span>
             </button>
             <button
+              v-if="isHrDivision"
               type="button"
               @click="activeSheetTab = 'cuti'"
               class="px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
@@ -103,7 +117,7 @@ async function triggerExcelExport() {
               :disabled="isExporting"
               class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-xs cursor-pointer"
             >
-              <span>📥 {{ isExporting ? 'Mengekspor...' : 'Download Excel 2 Sheet' }}</span>
+              <span>📥 {{ isExporting ? 'Mengekspor...' : (isHrDivision ? 'Download Excel 2 Sheet' : 'Download Excel Absen') }}</span>
             </button>
             <button @click="emit('close')" class="text-slate-400 hover:text-slate-700 text-lg p-1 cursor-pointer">&times;</button>
           </div>
@@ -118,10 +132,11 @@ async function triggerExcelExport() {
             :employees="employees"
             :attendance-map="attendanceMap"
             :keterangan-map="keteranganMap"
+            :show-incomplete-warning="isHrDivision"
           />
 
           <PreviewSheetCuti
-            v-else-if="activeSheetTab === 'cuti'"
+            v-else-if="activeSheetTab === 'cuti' && isHrDivision"
             :selected-year="selectedYear"
           />
         </div>

@@ -7,9 +7,11 @@ use tauri::State;
 pub fn get_rekap_cuti_tahun(
     database: State<'_, Database>,
     tahun: i32,
+    divisi: String,
 ) -> Result<Vec<LeaveSummary>, String> {
     let conn = database.0.lock().map_err(|e| e.to_string())?;
-    leave_service::fetch_rekap_cuti(&conn, tahun)
+    // Teruskan param divisi ke backend core
+    leave_service::fetch_rekap_cuti(&conn, tahun, &divisi)
 }
 
 #[tauri::command]

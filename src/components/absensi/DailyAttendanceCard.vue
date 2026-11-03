@@ -30,7 +30,7 @@ const statusOptions = [
 ];
 
 const needsComment = computed(() => {
-  return ['OFF', 'SAKIT', 'SAKIT (SD)', 'IZIN', 'CUTI'].includes(props.status);
+  return ['ON', 'OFF', 'SAKIT', 'SAKIT (SD)', 'IZIN', 'CUTI', 'ALPA'].includes(props.status);
 });
 
 const commentPlaceholder = computed(() => {
@@ -41,6 +41,10 @@ const commentPlaceholder = computed(() => {
       return 'Contoh: Surat Dokter Klinik Kimia Farma';
     case 'SAKIT':
       return 'Contoh: Demam, tanpa surat dokter';
+    case 'ALPA':
+      return 'Contoh: Tidak hadir tanpa keterangan';
+    case 'ON':
+      return 'Contoh: Hadir normal / masuk shift pagi';
     case 'IZIN':
     case 'CUTI':
       return 'Contoh: Keperluan keluarga';

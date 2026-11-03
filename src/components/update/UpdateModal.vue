@@ -63,7 +63,7 @@ async function checkForUpdates(manualCheck = false) {
       updateInfo.value = update;
       showModal.value = true;
     } else if (manualCheck) {
-      alert('You are already running the latest version of Pendataan Karyawan OASIS.');
+      alert('You are already running the latest version of OASIS One.');
     }
   } catch (error) {
     console.error('Failed to check for updates:', error);

@@ -9,6 +9,22 @@
     "core:default",
     "opener:default",
     "dialog:default",
-    "dialog:allow-save"
+    "dialog:allow-save",
+    "core:window:allow-create",
+    "core:window:allow-close",
+    "core:app:allow-exit",
+    "sql:allow-execute",
+    "sql:allow-select",
+    "sql:allow-load",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://script.google.com/macros/s/*" },
+        { "url": "https://script.google.com/a/*/macros/s/*" },
+        { "url": "https://script.google.com/macros/u/*/s/*" },
+        { "url": "https://script.googleusercontent.com/macros/s/*" },
+        { "url": "http://*:3000/*" }
+      ]
+    }
   ]
 }

@@ -9,8 +9,8 @@ interface LeaveSummary {
   join_date?: string;
   jatah_awal: number;
   cuti_bersama: number;
-  monthly_a: number[];
-  monthly_b: number[];
+  monthly_a: number[]; // Cuti dari Quota (Status = CUTI)
+  monthly_b: number[]; // Cuti Potong Gaji (Status = IZIN/ALPA dsb tergantung rules)
   total_cuti_terpakai: number;
   total_potongan_gaji: number;
   sisa_cuti: number;
@@ -23,13 +23,18 @@ const props = defineProps<{
 const leaveData = ref<LeaveSummary[]>([]);
 const isLoading = ref(false);
 
+// ⬇️ UPDATE: State reaktif untuk filter Divisi (Default: Staff)
+const selectedDivision = ref('staff');
+
 const monthHeaders = ['JAN', 'FEB', 'MAR', 'APR', 'MEI', 'JUN', 'JUL', 'AGS', 'SEP', 'OKT', 'NOV', 'DES'];
 
 async function loadLeaveData() {
   isLoading.value = true;
   try {
+    // ⬇️ UPDATE: Mengirim parameter `divisi` ke backend Rust
     const res = await invoke<LeaveSummary[]>('get_rekap_cuti_tahun', {
       tahun: props.selectedYear,
+      divisi: selectedDivision.value
     });
     leaveData.value = res;
   } catch (err) {
@@ -39,7 +44,8 @@ async function loadLeaveData() {
   }
 }
 
-watch(() => props.selectedYear, () => {
+// ⬇️ UPDATE: Menjalankan ulang fetch DB lokal setiap kali Tahun ATAU Divisi diubah
+watch([() => props.selectedYear, selectedDivision], () => {
   void loadLeaveData();
 });
 
@@ -50,9 +56,28 @@ onMounted(() => {
 
 <template>
   <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
-    <div class="pb-2 border-b">
-      <h2 class="text-lg font-bold text-slate-900">REKAPITULASI CUTI STAFF PENGELOLA</h2>
-      <h3 class="text-sm font-semibold text-emerald-800">Periode Tahun: {{ selectedYear }}</h3>
+    
+    <!-- ⬇️ UPDATE: Header dengan Dropdown Filter Divisi -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b gap-4">
+      <div>
+        <h2 class="text-lg font-bold text-slate-900 uppercase">
+          REKAPITULASI CUTI {{ selectedDivision === 'staff' ? 'STAFF PENGELOLA' : selectedDivision }}
+        </h2>
+        <h3 class="text-sm font-semibold text-emerald-800">Periode Tahun: {{ selectedYear }}</h3>
+      </div>
+      
+      <div class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+        <span class="text-xs font-bold text-slate-500">Pilih Divisi:</span>
+        <select
+          v-model="selectedDivision"
+          class="bg-transparent text-xs font-bold text-slate-800 border-0 focus:outline-none cursor-pointer"
+        >
+          <option value="staff">Staff & Pengelola</option>
+          <option value="security">Security</option>
+          <option value="housekeeping">Housekeeping</option>
+          <option value="engineering">Engineering</option>
+        </select>
+      </div>
     </div>
 
     <div v-if="isLoading" class="p-8 text-center text-slate-400 font-medium">
@@ -60,7 +85,7 @@ onMounted(() => {
     </div>
 
     <div v-else-if="leaveData.length === 0" class="p-8 text-center text-slate-400">
-      Tidak ada data cuti untuk ditampilkan.
+      Tidak ada data cuti untuk ditampilkan pada divisi ini di tahun {{ selectedYear }}.
     </div>
 
     <div v-else class="overflow-x-auto border rounded-xl">

@@ -8,6 +8,7 @@ const props = defineProps<{
   employees: Employee[];
   attendanceMap: Record<string, string>;
   keteranganMap?: Record<string, string>;
+  showIncompleteWarning?: boolean;
 }>();
 
 const daysInMonth = computed(() => {
@@ -55,7 +56,7 @@ const hasIncompleteEntries = computed(() => {
 <template>
   <div class="space-y-4">
     <!-- Incomplete Warning Banner -->
-    <div v-if="hasIncompleteEntries" class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 flex items-center gap-2 text-xs text-amber-800 font-medium">
+    <div v-if="(showIncompleteWarning ?? true) && hasIncompleteEntries" class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 flex items-center gap-2 text-xs text-amber-800 font-medium">
       <span class="text-base">⚠️</span>
       <span>Beberapa karyawan memiliki hari yang belum diisi status absensinya (Total hari terisi &lt; {{ daysInMonth }} hari).</span>
     </div>

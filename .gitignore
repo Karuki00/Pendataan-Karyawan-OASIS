@@ -18,6 +18,13 @@ coverage
 .env.*
 !.env.example
 
+# Office-only deployment configuration
+src/dev/quickDevLogin.ts
+apps-script/
+latest.json
+.restore-points
+INSTRUCTIONS
+
 # Local application data and employee exports
 *.sqlite
 *.sqlite3

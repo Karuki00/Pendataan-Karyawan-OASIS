@@ -25,5 +25,7 @@ export interface Employee {
   join_date?: string;
   tanggal_kartap?: string;
   tempat_kerja?: string;
+  regu?: string;
+  catatan?: string;
   is_flagged?: boolean;
 }

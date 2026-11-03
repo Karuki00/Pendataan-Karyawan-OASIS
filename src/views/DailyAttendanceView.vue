@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
+import { resolveMaster, forgetMaster } from '../services/masterDiscovery';
 import type { Employee } from '../types';
 import DailyAttendanceCard from '../components/absensi/DailyAttendanceCard.vue';
 
@@ -23,6 +25,7 @@ const emit = defineEmits<{
 const STORAGE_KEY_DAY = 'oasis_absensi_day';
 const savedDay = Number(localStorage.getItem(STORAGE_KEY_DAY)) || 1;
 const selectedDay = ref(savedDay);
+const lastSave = ref('');
 
 watch(selectedDay, (newDay) => {
   localStorage.setItem(STORAGE_KEY_DAY, String(newDay));
@@ -48,26 +51,75 @@ function getKeteranganForEmployee(nik: string): string {
 
 async function handleCardChange(nik: string, payload: { status: string; keterangan: string }) {
   const dateStr = activeDateStr.value;
+  console.info(`[absensi] change ${nik} ${dateStr} -> "${payload.status}"`);
 
-  // 1. Instantly update Vue Store & LocalStorage
+  // 1. Instantly update Vue store (the UI never waits for the network)
   emit('updateCell', { nik, dateStr, status: payload.status, keterangan: payload.keterangan });
 
-  // 2. Save to SQLite
   try {
-    const periode = await invoke<any>('get_or_create_periode', {
-      year: props.selectedYear,
-      month: props.selectedMonth,
-    });
+    let syncedToMaster = false;
+    let reason = '';
+    const masterUrl = await resolveMaster();
 
-    await invoke('update_absensi_cell', {
-      nik,
-      periodeId: periode.id,
-      tanggal: dateStr,
-      status: payload.status,
-      keterangan: payload.keterangan,
-    });
+    if (!masterUrl) {
+      reason = 'master tidak ditemukan';
+      console.warn('[absensi] no master found, will save locally');
+    } else {
+      console.info('[absensi] using master', masterUrl);
+      try {
+        const res = await tauriFetch(
+          `${masterUrl}/api/attendance/periode?year=${props.selectedYear}&month=${props.selectedMonth}`,
+          { connectTimeout: 3000 },
+        );
+        console.info('[absensi] periode status', res.status);
+        if (res.ok) {
+          const p = await res.json();
+          const response = await tauriFetch(`${masterUrl}/api/attendance/cell`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              nik,
+              periode_id: p.id,
+              tanggal: dateStr,
+              status: payload.status,
+              keterangan: payload.keterangan,
+            }),
+            connectTimeout: 3000,
+          });
+          console.info('[absensi] cell POST status', response.status);
+          syncedToMaster = response.ok;
+          if (!response.ok) reason = `master menolak (HTTP ${response.status})`;
+        } else {
+          reason = `periode gagal (HTTP ${res.status})`;
+        }
+      } catch (error) {
+        reason = 'koneksi ke master putus';
+        console.warn('[absensi] master request failed:', error);
+        forgetMaster();
+      }
+    }
+
+    if (syncedToMaster) {
+      lastSave.value = `master (${masterUrl})`;
+      console.info('[absensi] SAVED to master');
+    } else {
+      const periode: any = await invoke('get_or_create_periode', {
+        year: props.selectedYear,
+        month: props.selectedMonth,
+      });
+      await invoke('update_absensi_cell', {
+        nik,
+        periodeId: periode.id,
+        tanggal: dateStr,
+        status: payload.status,
+        keterangan: payload.keterangan,
+      });
+      lastSave.value = `lokal (${reason})`;
+      console.warn(`[absensi] SAVED LOCALLY ONLY: ${reason}`);
+    }
   } catch (err) {
-    console.error('Gagal menyimpan ke SQLite:', err);
+    lastSave.value = 'GAGAL';
+    console.error('Gagal menyimpan atau menyinkronkan sel absensi:', err);
   }
 }
 </script>
@@ -102,7 +154,7 @@ async function handleCardChange(nik: string, payload: { status: string; keterang
 
     <!-- Staff Cards List -->
     <div v-if="employees.length === 0" class="p-8 text-center text-slate-400 bg-white rounded-2xl border shadow-xs">
-      Tidak ada karyawan aktif divisi STAFF / Pengelola.
+      Tidak ada karyawan aktif untuk divisi ini.
     </div>
 
     <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-3.5">

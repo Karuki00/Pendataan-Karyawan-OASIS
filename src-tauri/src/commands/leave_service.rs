@@ -30,17 +30,27 @@ fn count_red_dates_excluding_sunday(conn: &Connection, year_month: &str) -> i32 
     red_date_count
 }
 
-/// Fetches annual leave summary per employee.
+/// Fetches annual leave summary per employee based on division.
 /// Automatically detects red dates (excluding Sundays) for monthly statistics.
-pub fn fetch_rekap_cuti(conn: &Connection, tahun: i32) -> Result<Vec<LeaveSummary>, String> {
-    let mut stmt = conn
-        .prepare(
-            "SELECT nik, nama_lengkap, jabatan, join_date 
-             FROM master_karyawan 
-             WHERE status = 'AKTIF' AND (divisi = 'STAFF' OR tempat_kerja = 'Pengelola')
-             ORDER BY nama_lengkap COLLATE NOCASE",
-        )
-        .map_err(|e| e.to_string())?;
+pub fn fetch_rekap_cuti(conn: &Connection, tahun: i32, divisi_filter: &str) -> Result<Vec<LeaveSummary>, String> {
+    
+    // Tentukan kondisi SQL berdasarkan filter divisi dari Frontend
+    let condition = match divisi_filter.to_lowercase().as_str() {
+        "security" => "(UPPER(divisi) LIKE '%SECURITY%' OR UPPER(divisi) LIKE '%KEAMANAN%')",
+        "housekeeping" => "(UPPER(divisi) LIKE '%HOUSEKEEPING%' OR UPPER(divisi) LIKE '%HK%')",
+        "engineering" => "(UPPER(divisi) LIKE '%ENGINEERING%' OR UPPER(divisi) LIKE '%TEKNISI%')",
+        _ => "(UPPER(divisi) = 'STAFF' OR tempat_kerja = 'Pengelola')", // Default untuk 'staff'
+    };
+
+    let query = format!(
+        "SELECT nik, nama_lengkap, jabatan, join_date 
+         FROM master_karyawan 
+         WHERE status = 'AKTIF' AND {}
+         ORDER BY nama_lengkap COLLATE NOCASE",
+        condition
+    );
+
+    let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
 
     let employees: Vec<(String, String, String, Option<String>)> = stmt
         .query_map([], |row| {

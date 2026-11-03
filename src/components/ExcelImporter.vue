@@ -51,7 +51,7 @@ const fields: Array<keyof Employee> = [
   "alamat_ktp", "bpjs_kesehatan", "bpjs_ketenagakerjaan", "nomor_telepon", "jabatan",
   "divisi", "nama_ibu_kandung", "nama_pasangan", "jumlah_anak", "nomor_telp_keluarga",
   "foto_ktp", "foto_kk", "foto_bpjs_kesehatan", "foto_bpjs_ketenagakerjaan", "pendidikan_terakhir",
-  "perjanjian_kerja", "status", "join_date", "tanggal_kartap", "tempat_kerja", "is_flagged"
+  "perjanjian_kerja", "status", "join_date", "tanggal_kartap", "tempat_kerja", "regu", "catatan", "is_flagged"
 ];
 
 const headerMap: Record<string, keyof Employee> = {
@@ -68,6 +68,7 @@ const headerMap: Record<string, keyof Employee> = {
   "scan/foto kartu bpjs ketenagakerjaan (bpjs-tk)": "foto_bpjs_ketenagakerjaan",
   "pendidikan terakhir": "pendidikan_terakhir",
   "perjanjian kerja": "perjanjian_kerja", status: "status", "tempat kerja": "tempat_kerja",
+  regu: "regu", "regu security": "regu", catatan: "catatan", keterangan: "catatan", "catatan karyawan": "catatan",
 };
 
 const importableRows = computed(() => 
@@ -112,6 +113,21 @@ function inferDivision(jabatan: string): string {
   return "";
 }
 
+function normalizeSecurityFields(employee: Record<string, unknown>): void {
+  const division = normalize(employee.divisi).toUpperCase();
+  const originalJabatan = normalize(employee.jabatan);
+  if (division !== 'SECURITY' && !/security|satpam/i.test(originalJabatan)) return;
+
+  const reguFromJabatan = originalJabatan.match(/\s*-\s*([A-Z0-9]+)\s*$/i)?.[1]?.toUpperCase() || '';
+  const cleanedJabatan = originalJabatan
+    .replace(/\s*\(\s*shift\s*\)/gi, '')
+    .replace(/\s*-\s*[A-Z0-9]+\s*$/i, '')
+    .trim();
+
+  employee.jabatan = cleanedJabatan || 'Anggota Security';
+  employee.regu = normalize(employee.regu) || reguFromJabatan;
+}
+
 function mapRow(row: Record<string, unknown>): Employee {
   const employee: Record<string, unknown> = {};
 
@@ -132,6 +148,7 @@ function mapRow(row: Record<string, unknown>): Employee {
   });
 
   employee.divisi = employee.divisi || inferDivision(normalize(employee.jabatan));
+  normalizeSecurityFields(employee);
   employee.perjanjian_kerja = employee.perjanjian_kerja || "PKWTT";
   employee.status = parseStatus(employee.status);
 

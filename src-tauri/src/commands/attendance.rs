@@ -1,6 +1,6 @@
 use crate::models::attendance::PeriodeAbsensi;
 use crate::Database;
-use chrono::{NaiveDate};
+use chrono::{Duration, NaiveDate};
 use rusqlite::{params, Connection, Result};
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -75,14 +75,10 @@ pub fn get_or_create_periode(
 ) -> Result<PeriodeAbsensi, String> {
     let conn = database.0.lock().map_err(|e| e.to_string())?;
 
-    let start_1 = NaiveDate::from_ymd_opt(year, month, 1).ok_or("Tanggal tidak valid")?;
-
-    let next_month = if month == 12 { 1 } else { month + 1 };
-    let next_year = if month == 12 { year + 1 } else { year };
-    let end_date = NaiveDate::from_ymd_opt(next_year, next_month, 1)
-        .ok_or("Tanggal tidak valid")?
-        .pred_opt()
-        .ok_or("Tanggal tidak valid")?;
+    let current_month = NaiveDate::from_ymd_opt(year, month, 1).ok_or("Tanggal tidak valid")?;
+    // Payroll period: 17th of the previous month through 16th of the selected month.
+    let start_1 = current_month - Duration::days(14);
+    let end_date = current_month + Duration::days(15);
 
     let start_str = start_1.format("%Y-%m-%d").to_string();
     let end_str = end_date.format("%Y-%m-%d").to_string();
@@ -194,63 +190,94 @@ pub fn reset_database(database: State<'_, Database>) -> Result<(), String> {
     Ok(())
 }
 
+// --- Helper internal untuk mengambil karyawan berdasarkan filter SQL divisi ---
+fn fetch_employees_by_division_query(conn: &Connection, sql_filter: &str) -> Result<Vec<crate::Employee>> {
+    let query = format!(
+        "SELECT nik, timestamp, join_date, tanggal_kartap, nama_lengkap, jenis_kelamin, 
+                tanggal_lahir, golongan_darah, nomor_kk, alamat_ktp, bpjs_kesehatan, 
+                bpjs_ketenagakerjaan, nomor_telepon, jabatan, divisi, nama_ibu_kandung, 
+                nama_pasangan, jumlah_anak, nomor_telp_keluarga, foto_ktp, foto_kk, 
+                foto_bpjs_kesehatan, foto_bpjs_ketenagakerjaan, pendidikan_terakhir, 
+                perjanjian_kerja, status, tempat_kerja, is_flagged, regu, catatan 
+         FROM master_karyawan 
+         WHERE status = 'AKTIF' AND ({}) 
+         ORDER BY nama_lengkap COLLATE NOCASE",
+        sql_filter
+    );
+
+    let mut stmt = conn.prepare(&query)?;
+    let rows = stmt.query_map([], |row| {
+        let flagged_int: i32 = row.get(27)?;
+        Ok(crate::Employee {
+            nik: row.get(0)?,
+            timestamp: row.get(1)?,
+            join_date: row.get(2)?,
+            tanggal_kartap: row.get(3)?,
+            nama_lengkap: row.get(4)?,
+            jenis_kelamin: row.get(5)?,
+            tanggal_lahir: row.get(6)?,
+            golongan_darah: row.get(7)?,
+            nomor_kk: row.get(8)?,
+            alamat_ktp: row.get(9)?,
+            bpjs_kesehatan: row.get(10)?,
+            bpjs_ketenagakerjaan: row.get(11)?,
+            nomor_telepon: row.get(12)?,
+            jabatan: row.get(13)?,
+            divisi: row.get(14)?,
+            nama_ibu_kandung: row.get(15)?,
+            nama_pasangan: row.get(16)?,
+            jumlah_anak: row.get(17)?,
+            nomor_telp_keluarga: row.get(18)?,
+            foto_ktp: row.get(19)?,
+            foto_kk: row.get(20)?,
+            foto_bpjs_kesehatan: row.get(21)?,
+            foto_bpjs_ketenagakerjaan: row.get(22)?,
+            pendidikan_terakhir: row.get(23)?,
+            perjanjian_kerja: row.get(24)?,
+            status: row.get(25)?,
+            tempat_kerja: row.get(26)?,
+            is_flagged: Some(flagged_int != 0),
+            regu: row.get(28)?,
+            catatan: row.get(29)?,
+        })
+    })?;
+
+    rows.collect::<Result<Vec<_>, _>>()
+}
+
 #[tauri::command]
 pub fn list_staff_employees_for_absensi(
     database: State<'_, Database>,
 ) -> Result<Vec<crate::Employee>, String> {
     let conn = database.0.lock().map_err(|e| e.to_string())?;
+    fetch_employees_by_division_query(&conn, "UPPER(divisi) = 'STAFF' OR tempat_kerja = 'Pengelola'")
+        .map_err(|e| e.to_string())
+}
 
-    let mut stmt = conn
-        .prepare(
-            "SELECT nik, timestamp, join_date, tanggal_kartap, nama_lengkap, jenis_kelamin, 
-                    tanggal_lahir, golongan_darah, nomor_kk, alamat_ktp, bpjs_kesehatan, 
-                    bpjs_ketenagakerjaan, nomor_telepon, jabatan, divisi, nama_ibu_kandung, 
-                    nama_pasangan, jumlah_anak, nomor_telp_keluarga, foto_ktp, foto_kk, 
-                    foto_bpjs_kesehatan, foto_bpjs_ketenagakerjaan, pendidikan_terakhir, 
-                    perjanjian_kerja, status, tempat_kerja, is_flagged 
-             FROM master_karyawan 
-             WHERE status = 'AKTIF' AND (divisi = 'STAFF' OR tempat_kerja = 'Pengelola')
-             ORDER BY nama_lengkap COLLATE NOCASE",
-        )
-        .map_err(|e| e.to_string())?;
+#[tauri::command]
+pub fn list_security_employees_for_absensi(
+    database: State<'_, Database>,
+) -> Result<Vec<crate::Employee>, String> {
+    let conn = database.0.lock().map_err(|e| e.to_string())?;
+    fetch_employees_by_division_query(&conn, "LOWER(divisi) LIKE '%security%'")
+        .map_err(|e| e.to_string())
+}
 
-    let rows = stmt
-        .query_map([], |row| {
-            let flagged_int: i32 = row.get(27)?;
-            Ok(crate::Employee {
-                nik: row.get(0)?,
-                timestamp: row.get(1)?,
-                join_date: row.get(2)?,
-                tanggal_kartap: row.get(3)?,
-                nama_lengkap: row.get(4)?,
-                jenis_kelamin: row.get(5)?,
-                tanggal_lahir: row.get(6)?,
-                golongan_darah: row.get(7)?,
-                nomor_kk: row.get(8)?,
-                alamat_ktp: row.get(9)?,
-                bpjs_kesehatan: row.get(10)?,
-                bpjs_ketenagakerjaan: row.get(11)?,
-                nomor_telepon: row.get(12)?,
-                jabatan: row.get(13)?,
-                divisi: row.get(14)?,
-                nama_ibu_kandung: row.get(15)?,
-                nama_pasangan: row.get(16)?,
-                jumlah_anak: row.get(17)?,
-                nomor_telp_keluarga: row.get(18)?,
-                foto_ktp: row.get(19)?,
-                foto_kk: row.get(20)?,
-                foto_bpjs_kesehatan: row.get(21)?,
-                foto_bpjs_ketenagakerjaan: row.get(22)?,
-                pendidikan_terakhir: row.get(23)?,
-                perjanjian_kerja: row.get(24)?,
-                status: row.get(25)?,
-                tempat_kerja: row.get(26)?,
-                is_flagged: Some(flagged_int != 0),
-            })
-        })
-        .map_err(|e| e.to_string())?;
+#[tauri::command]
+pub fn list_housekeeping_employees_for_absensi(
+    database: State<'_, Database>,
+) -> Result<Vec<crate::Employee>, String> {
+    let conn = database.0.lock().map_err(|e| e.to_string())?;
+    fetch_employees_by_division_query(&conn, "LOWER(divisi) LIKE '%housekeeping%' OR LOWER(divisi) LIKE '%hk%'")
+        .map_err(|e| e.to_string())
+}
 
-    rows.collect::<Result<Vec<_>, _>>()
+#[tauri::command]
+pub fn list_engineering_employees_for_absensi(
+    database: State<'_, Database>,
+) -> Result<Vec<crate::Employee>, String> {
+    let conn = database.0.lock().map_err(|e| e.to_string())?;
+    fetch_employees_by_division_query(&conn, "LOWER(divisi) LIKE '%engineering%' OR LOWER(divisi) LIKE '%teknisi%'")
         .map_err(|e| e.to_string())
 }
 

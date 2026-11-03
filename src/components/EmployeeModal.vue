@@ -24,7 +24,7 @@ const kkWarning = ref("");
 const divisionJabatanMap: Record<string, string[]> = {
   STAFF: ["Manager", "Supervisor", "HRD & Legal", "Finance & Accounting", "Admin Pengelola"],
   ENGINEERING: ["Chief Engineering", "Ass. Chief Engineering", "Teknisi Shift", "Teknisi Non-Shift", "Danru Engineering"],
-  SECURITY: ["Chief Security", "Danru Security", "Anggota Security (Shift)", "Patroli"],
+  SECURITY: ["Chief Security", "Danru Security", "Wadanru Security", "Anggota Security", "Patroli"],
   HOUSEKEEPING: ["Supervisor Housekeeping", "Leader Housekeeping", "Cleaner", "Gardener"],
 };
 
@@ -53,6 +53,8 @@ const formFields: Array<{
   { key: "perjanjian_kerja", label: "Perjanjian Kerja", options: ["PKWTT", "PKWT"] },
   { key: "status", label: "Status", options: ["AKTIF", "PENSIUN", "RESIGN"] },
   { key: "tempat_kerja", label: "Tempat Kerja", options: ["Lapangan", "Kantor"] },
+  // Regu dipisahkan penanganannya agar kondisional berdasarkan Divisi Security
+  { key: "catatan", label: "Catatan Karyawan" },
 ];
 
 const emptyEmployee = (): Employee => ({
@@ -61,7 +63,7 @@ const emptyEmployee = (): Employee => ({
   jabatan: "", divisi: "STAFF", nama_ibu_kandung: "", nama_pasangan: "", jumlah_anak: "",
   nomor_telp_keluarga: "", foto_ktp: "", foto_kk: "", foto_bpjs_kesehatan: "",
   foto_bpjs_ketenagakerjaan: "", pendidikan_terakhir: "SMA", perjanjian_kerja: "PKWTT",
-  status: "AKTIF", tempat_kerja: "Lapangan",
+  status: "AKTIF", tempat_kerja: "Lapangan", regu: "", catatan: "",
 });
 
 const form = reactive<Employee>(emptyEmployee());
@@ -79,6 +81,10 @@ watch(() => form.divisi, (newDiv) => {
     if (!divisionJabatanMap[newDiv].includes(currentJabatan)) {
       form.jabatan = divisionJabatanMap[newDiv][0] || "";
     }
+  }
+  // Reset regu jika divisi bukan SECURITY
+  if (newDiv !== "SECURITY") {
+    form.regu = "";
   }
 });
 
@@ -103,7 +109,6 @@ watch(() => props.isOpen, async (openState) => {
   }
 });
 
-// Non-blocking Warning Evaluator
 function checkWarnings(): string[] {
   const warnings: string[] = [];
   const cleanNik = (form.nik || "").trim();
@@ -143,7 +148,6 @@ async function saveEmployee() {
   try {
     await invoke("save_employee", { employee: form });
     
-    // Kirim catatan warning ke komponen utama jika ada
     const warningSummary = warnings.length > 0 
       ? `Data tersimpan dengan catatan: ${warnings.join(" ")}`
       : undefined;
@@ -162,7 +166,7 @@ async function saveEmployee() {
   <Teleport to="body">
     <div 
       v-if="isOpen" 
-      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4" 
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 backdrop-blur-xs p-4" 
       @click.self="emit('close')"
     >
       <form 
@@ -185,7 +189,7 @@ async function saveEmployee() {
         </div>
 
         <div class="grid gap-4 sm:grid-cols-2">
-          <!-- Input NIK dengan Warning Visual Non-blocking -->
+          <!-- NIK -->
           <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
             NIK (16 Digit) *
             <input 
@@ -213,7 +217,7 @@ async function saveEmployee() {
             />
           </label>
 
-          <!-- Nomor KK dengan Warning Non-blocking -->
+          <!-- Nomor KK -->
           <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
             Nomor KK (16 Digit)
             <input 
@@ -250,6 +254,17 @@ async function saveEmployee() {
                 {{ jabatanOption }}
               </option>
             </select>
+          </label>
+
+          <!-- Regu Security (Hanya muncul jika Divisi adalah SECURITY) -->
+          <label v-if="form.divisi === 'SECURITY'" class="block text-xs font-semibold uppercase tracking-wider text-blue-700">
+            Regu Security *
+            <input 
+              v-model="form.regu" 
+              type="text" 
+              placeholder="Contoh: A, B, C, atau 1, 2"
+              class="mt-1.5 w-full rounded-xl border border-blue-200 bg-blue-50/30 px-3.5 py-2.5 text-sm font-normal text-slate-800 outline-none transition-all focus:border-blue-500 focus:bg-white"
+            />
           </label>
 
           <!-- Dynamic Field List -->

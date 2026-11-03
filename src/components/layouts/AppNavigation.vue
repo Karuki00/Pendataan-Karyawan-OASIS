@@ -1,9 +1,12 @@
 <script setup lang="ts">
-export type Tab = "dashboard" | "master" | "absensi" | "cuti";
+export type Tab = "dashboard" | "master" | "absensi" | "cuti" | "security_admin";
 
-defineProps<{
+withDefaults(defineProps<{
   activeTab: Tab;
-}>();
+  showSecurityAdmin?: boolean;
+}>(), {
+  showSecurityAdmin: false,
+});
 
 const emit = defineEmits<{
   (e: 'selectTab', tab: Tab): void;
@@ -42,6 +45,14 @@ const emit = defineEmits<{
       @click="emit('selectTab', 'cuti')"
     >
       <span>🌴 Rekap Cuti</span>
+    </button>
+    <button
+      v-if="showSecurityAdmin"
+      class="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all cursor-pointer"
+      :class="activeTab === 'security_admin' ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'"
+      @click="emit('selectTab', 'security_admin')"
+    >
+      <span>Security Admin</span>
     </button>
   </nav>
 </template>

@@ -10,7 +10,7 @@ import logoUrl from "../assets/LOGO_OASIS_V2.png";
 
 // App metadata
 const appVersion = tauriConfig.version;
-const appTitle = tauriConfig.productName || "Pendataan Karyawan OASIS";
+const appTitle = "OASIS One";
 const developer = "Apartemen Oasis Mitra Sarana";
 const techStack = [
   { name: "Tauri v2", role: "Desktop App Framework" },
@@ -50,7 +50,7 @@ async function openGitHub() {
             />
         </div>
         <h3 class="text-xl font-extrabold tracking-tight">{{ appTitle }}</h3>
-        <p class="text-xs text-blue-100 mt-1 font-medium">Sistem Informasi Master Data Karyawan</p>
+        <p class="text-xs text-blue-100 mt-1 font-medium">Platform Terpadu Apartemen Mitra Oasis Sarana</p>
         <span class="mt-3 inline-block rounded-full bg-white/20 px-3 py-0.5 text-xs font-mono font-semibold text-white">
           v{{ appVersion }}
         </span>

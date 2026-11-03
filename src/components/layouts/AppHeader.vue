@@ -18,9 +18,9 @@ const appVersion = tauriConfig.version;
         </div>
         <div>
           <h1 class="text-xl font-bold text-white flex items-center gap-2">
-            Database Karyawan
+            OASIS One
             <span class="rounded-full bg-emerald-400/20 px-2 py-0.5 text-[10px] text-emerald-200 border border-emerald-400/30">
-              Oasis Portal
+              OASIS One
             </span>
           </h1>
           <p class="text-xs text-emerald-100/70">Sistem Pendataan &amp; Pusat Keputusan Manajemen</p>

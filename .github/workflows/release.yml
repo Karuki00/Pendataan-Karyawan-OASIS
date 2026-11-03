@@ -67,8 +67,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          VITE_APPS_SCRIPT_URL: ${{ secrets.VITE_APPS_SCRIPT_URL }}
-          VITE_APPS_SCRIPT_ADMIN_URL: ${{ secrets.VITE_APPS_SCRIPT_ADMIN_URL }}
+          VITE_APPS_SCRIPT_URL: 'https://script.google.com/a/*/macros/s/AKfycbzRHcYZzNof6_5CihFIkGeD8zF-pEK3KPkcc0aUmyUBGG4H28FToeq6EzOryuevmSQ/exec'
+          VITE_APPS_SCRIPT_ADMIN_URL: 'https://script.google.com/macros/s/AKfycbzNJQt0z3I18_iFfgjIjQd4-db_VY38w9KziyoPtxUQYBd7lAdFQTSP0-VU2v9VVoDqkg/exec'
           VITE_APPS_SCRIPT_ADMIN_SECRET: ${{ secrets.VITE_APPS_SCRIPT_SYNC_SECRET }}
           VITE_SECURITY_ATTENDANCE_SECRET: ${{ secrets.VITE_SECURITY_ATTENDANCE_SECRET }}
           VITE_INSPECTION_ACCESS_TOKEN: ${{ secrets.VITE_INSPECTION_ACCESS_TOKEN }}

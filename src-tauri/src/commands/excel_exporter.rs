@@ -2,6 +2,8 @@ use crate::Database;
 use chrono::{Datelike, NaiveDate};
 use rusqlite::Connection;
 use rust_xlsxwriter::*;
+use serde::Deserialize;
+use std::collections::HashMap;
 use tauri::State;
 
 /// Converts 0-indexed column number to Excel column name (0 -> "A", 4 -> "E", 27 -> "AB")
@@ -24,6 +26,22 @@ struct EmployeeRef {
     nama_lengkap: String,
     jabatan: String,
     join_date: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ExportEmployee {
+    pub nik: String,
+    pub nama_lengkap: String,
+    pub jabatan: String,
+    pub join_date: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ExportAttendanceCell {
+    pub nik: String,
+    pub tanggal: String,
+    pub status: String,
+    pub keterangan: String,
 }
 
 fn fetch_active_staff(conn: &Connection) -> Result<Vec<EmployeeRef>, String> {
@@ -59,6 +77,7 @@ fn build_sheet_rekap_absen(
     employees: &[EmployeeRef],
     year: i32,
     month: u32,
+    attendance_cells: Option<&HashMap<(String, String), (String, String)>>,
 ) -> Result<(), String> {
     let worksheet = workbook
         .add_worksheet()
@@ -139,12 +158,16 @@ fn build_sheet_rekap_absen(
             let col = 4 + day_idx;
             let date_str = date_curr.format("%Y-%m-%d").to_string();
 
-            let (status, keterangan): (String, String) = conn.query_row(
-                "SELECT status, COALESCE(keterangan, '') FROM absensi WHERE nik = ?1 AND tanggal = ?2",
-                rusqlite::params![emp.nik, date_str],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
-            .unwrap_or_else(|_| ("".to_string(), "".to_string()));
+            let (status, keterangan) = attendance_cells
+                .and_then(|cells| cells.get(&(emp.nik.clone(), date_str.clone())).cloned())
+                .unwrap_or_else(|| {
+                    conn.query_row(
+                        "SELECT status, COALESCE(keterangan, '') FROM absensi WHERE nik = ?1 AND tanggal = ?2",
+                        rusqlite::params![emp.nik, date_str],
+                        |r| Ok((r.get(0)?, r.get(1)?)),
+                    )
+                    .unwrap_or_else(|_| ("".to_string(), "".to_string()))
+                });
 
             worksheet.write_with_format(row_idx, col, &status, &cell_center).ok();
 
@@ -181,6 +204,7 @@ fn build_sheet_rekap_cuti(
     conn: &Connection,
     employees: &[EmployeeRef],
     year: i32,
+    attendance_cells: Option<&HashMap<(String, String), (String, String)>>,
 ) -> Result<(), String> {
     let worksheet = workbook
         .add_worksheet()
@@ -247,13 +271,35 @@ fn build_sheet_rekap_cuti(
             let m_str = format!("{:02}", m);
             let ym = format!("{}-{}", year, m_str);
 
-            let count_a: i32 = conn
-                .query_row("SELECT COUNT(*) FROM absensi WHERE nik = ?1 AND UPPER(status) IN ('CUTI', 'ALPA', 'IZIN', 'SAKIT') AND strftime('%Y-%m', tanggal) = ?2", rusqlite::params![emp.nik, ym], |r| r.get(0))
-                .unwrap_or(0);
-
-            let count_b: i32 = conn
-                .query_row("SELECT COUNT(*) FROM absensi WHERE nik = ?1 AND UPPER(status) IN ('ALPA', 'POTONG_GAJI') AND strftime('%Y-%m', tanggal) = ?2", rusqlite::params![emp.nik, ym], |r| r.get(0))
-                .unwrap_or(0);
+            let (count_a, count_b) = if let Some(cells) = attendance_cells {
+                cells
+                    .iter()
+                    .filter(|((nik, tanggal), _)| nik == &emp.nik && tanggal.starts_with(&ym))
+                    .fold((0, 0), |(a, b), (_, (status, _))| {
+                        let normalized = status.to_uppercase();
+                        let next_a = a
+                            + if matches!(normalized.as_str(), "CUTI" | "IZIN" | "SAKIT") {
+                                1
+                            } else {
+                                0
+                            };
+                        let next_b = b
+                            + if matches!(normalized.as_str(), "ALPA" | "POTONG_GAJI") {
+                                1
+                            } else {
+                                0
+                            };
+                        (next_a, next_b)
+                    })
+            } else {
+                let count_a: i32 = conn
+                    .query_row("SELECT COUNT(*) FROM absensi WHERE nik = ?1 AND UPPER(status) IN ('CUTI', 'IZIN', 'SAKIT') AND strftime('%Y-%m', tanggal) = ?2", rusqlite::params![emp.nik, ym], |r| r.get(0))
+                    .unwrap_or(0);
+                let count_b: i32 = conn
+                    .query_row("SELECT COUNT(*) FROM absensi WHERE nik = ?1 AND UPPER(status) IN ('ALPA', 'POTONG_GAJI') AND strftime('%Y-%m', tanggal) = ?2", rusqlite::params![emp.nik, ym], |r| r.get(0))
+                    .unwrap_or(0);
+                (count_a, count_b)
+            };
 
             let col_a = 6 + ((m as u16 - 1) * 2);
             let col_b = col_a + 1;
@@ -287,17 +333,42 @@ pub fn export_rekap_absen_excel_1to1(
     file_path: String,
     year: i32,
     month: u32,
+    employees: Option<Vec<ExportEmployee>>,
+    attendance_cells: Option<Vec<ExportAttendanceCell>>,
 ) -> Result<(), String> {
     let conn = database.0.lock().map_err(|e| e.to_string())?;
-    let employees = fetch_active_staff(&conn)?;
+    let employees = employees
+        .map(|items| {
+            items
+                .into_iter()
+                .map(|employee| EmployeeRef {
+                    nik: employee.nik,
+                    nama_lengkap: employee.nama_lengkap,
+                    jabatan: employee.jabatan,
+                    join_date: employee.join_date,
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or(fetch_active_staff(&conn)?);
+    let attendance_cells = attendance_cells.map(|cells| {
+        cells
+            .into_iter()
+            .map(|cell| {
+                (
+                    (cell.nik, cell.tanggal),
+                    (cell.status, cell.keterangan),
+                )
+            })
+            .collect::<HashMap<_, _>>()
+    });
 
     let mut workbook = Workbook::new();
 
     // Sheet 1: Rekap Absen
-    build_sheet_rekap_absen(&mut workbook, &conn, &employees, year, month)?;
+    build_sheet_rekap_absen(&mut workbook, &conn, &employees, year, month, attendance_cells.as_ref())?;
 
     // Sheet 2: Rekap Cuti
-    build_sheet_rekap_cuti(&mut workbook, &conn, &employees, year)?;
+    build_sheet_rekap_cuti(&mut workbook, &conn, &employees, year, attendance_cells.as_ref())?;
 
     workbook.save(file_path).map_err(|e| e.to_string())?;
     Ok(())

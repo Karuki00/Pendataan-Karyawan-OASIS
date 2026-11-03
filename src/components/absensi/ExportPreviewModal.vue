@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { save } from '@tauri-apps/plugin-dialog';
 import type { Employee } from '../../types';
+import { resolveMaster } from '../../services/masterDiscovery';
 import PreviewSheetAbsen from './PreviewSheetAbsen.vue';
 import PreviewSheetCuti from './PreviewSheetCuti.vue';
 
@@ -49,11 +51,62 @@ async function triggerExcelExport() {
 
     isExporting.value = true;
 
+    let remoteAttendanceCells: Array<{
+      nik: string;
+      tanggal: string;
+      status: string;
+      keterangan: string;
+    }> | undefined;
+
+    const masterUrl = await resolveMaster();
+    if (masterUrl) {
+      try {
+        const periodCells = await Promise.all(
+          Array.from({ length: 12 }, (_, index) => index + 1).map(async (month) => {
+            try {
+              const periodeResponse = await tauriFetch(
+                `${masterUrl}/api/attendance/periode?year=${props.selectedYear}&month=${month}`,
+                { connectTimeout: 3000 },
+              );
+              if (!periodeResponse.ok) return [];
+
+              const periode = await periodeResponse.json() as { id?: number };
+              if (!periode.id) return [];
+
+              const cellsResponse = await tauriFetch(
+                `${masterUrl}/api/attendance/cells?periode_id=${periode.id}`,
+                { connectTimeout: 3000 },
+              );
+              return cellsResponse.ok
+                ? await cellsResponse.json() as Array<{ nik: string; tanggal: string; status: string; keterangan: string }>
+                : [];
+            } catch {
+              return [];
+            }
+          }),
+        );
+        remoteAttendanceCells = periodCells.flat();
+
+        if (remoteAttendanceCells.length === 0) {
+          remoteAttendanceCells = undefined;
+        }
+      } catch (error) {
+        console.warn('Master attendance unavailable during export; using local data:', error);
+      }
+    }
+
     await invoke('export_rekap_absen_excel_1to1', {
       filePath,
       logoPath: null,
       year: props.selectedYear,
       month: props.selectedMonth,
+      employees: props.employees.map((employee: Employee) => ({
+        nik: employee.nik,
+        nama_lengkap: employee.nama_lengkap,
+        jabatan: employee.jabatan || '',
+        join_date: employee.join_date,
+      })),
+      attendanceCells: remoteAttendanceCells,
     });
 
     const successMsg = isHrDivision.value 

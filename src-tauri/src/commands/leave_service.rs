@@ -78,12 +78,13 @@ pub fn fetch_rekap_cuti(conn: &Connection, tahun: i32, divisi_filter: &str) -> R
             let month_str = format!("{:02}", month);
             let year_month = format!("{}-{}", tahun, month_str);
 
-            // 1. Count Employee Cuti/Absence Quota
+            // 1. Count approved leave or leave-equivalent statuses.
+            // ALPA is an unapproved absence and belongs only to salary deduction.
             let cuti_count: i32 = conn
                 .query_row(
                     "SELECT COUNT(*) FROM absensi 
                      WHERE nik = ?1 
-                       AND UPPER(status) IN ('CUTI', 'ALPA', 'IZIN', 'SAKIT') 
+                       AND UPPER(status) IN ('CUTI', 'IZIN', 'SAKIT')
                        AND substr(tanggal, 1, 7) = ?2",
                     params![nik, year_month],
                     |r| r.get(0),

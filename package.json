@@ -1,13 +1,16 @@
 {
   "name": "oasis-karyawan-app",
   "private": true,
-  "version": "1.2.2",
+  "version": "1.2.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev --config src-tauri/tauri.conf.dev.json",
+    "tauri:build": "tauri build --config src-tauri/tauri.conf.json",
+    "tauri:build:dev": "tauri build --config src-tauri/tauri.conf.dev.json"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

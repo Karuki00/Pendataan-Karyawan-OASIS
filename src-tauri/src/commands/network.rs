@@ -314,7 +314,18 @@ async fn api_get_division_employees(
     let pattern = format!("%{}%", division.to_lowercase()); // bound parameter, not string-built SQL
     let conn = state.db.lock().unwrap();
 
-    let query = "SELECT nik, timestamp, join_date, tanggal_kartap, nama_lengkap, jenis_kelamin,
+    let query = if division.eq_ignore_ascii_case("staff") {
+        "SELECT nik, timestamp, join_date, tanggal_kartap, nama_lengkap, jenis_kelamin,
+                tanggal_lahir, golongan_darah, nomor_kk, alamat_ktp, bpjs_kesehatan,
+                bpjs_ketenagakerjaan, nomor_telepon, jabatan, divisi, nama_ibu_kandung,
+                nama_pasangan, jumlah_anak, nomor_telp_keluarga, foto_ktp, foto_kk,
+                foto_bpjs_kesehatan, foto_bpjs_ketenagakerjaan, pendidikan_terakhir,
+                perjanjian_kerja, status, tempat_kerja, is_flagged, regu, catatan
+         FROM master_karyawan
+         WHERE (LOWER(divisi) LIKE ?1 OR tempat_kerja = 'Pengelola') AND status = 'AKTIF'
+         ORDER BY nama_lengkap COLLATE NOCASE"
+    } else {
+        "SELECT nik, timestamp, join_date, tanggal_kartap, nama_lengkap, jenis_kelamin,
                 tanggal_lahir, golongan_darah, nomor_kk, alamat_ktp, bpjs_kesehatan,
                 bpjs_ketenagakerjaan, nomor_telepon, jabatan, divisi, nama_ibu_kandung,
                 nama_pasangan, jumlah_anak, nomor_telp_keluarga, foto_ktp, foto_kk,
@@ -322,7 +333,8 @@ async fn api_get_division_employees(
                 perjanjian_kerja, status, tempat_kerja, is_flagged, regu, catatan
          FROM master_karyawan
          WHERE LOWER(divisi) LIKE ?1 AND status = 'AKTIF'
-         ORDER BY nama_lengkap COLLATE NOCASE";
+         ORDER BY nama_lengkap COLLATE NOCASE"
+    };
 
     let mut stmt = match conn.prepare(query) {
         Ok(s) => s,

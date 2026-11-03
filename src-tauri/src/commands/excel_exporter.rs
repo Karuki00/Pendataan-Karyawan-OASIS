@@ -1,6 +1,6 @@
 use crate::Database;
 use chrono::{Datelike, NaiveDate};
-use rusqlite::{Connection, OptionalExtension};
+use rusqlite::Connection;
 use rust_xlsxwriter::*;
 use tauri::State;
 
@@ -96,18 +96,6 @@ fn build_sheet_rekap_absen(
         .pred_opt()
         .unwrap();
 
-    let start_str = start_date.format("%Y-%m-%d").to_string();
-    let end_str = end_date.format("%Y-%m-%d").to_string();
-
-    let periode_id: Option<i64> = conn
-        .query_row(
-            "SELECT id FROM periode_absensi WHERE tanggal_mulai = ?1 AND tanggal_selesai = ?2",
-            rusqlite::params![start_str, end_str],
-            |r| r.get(0),
-        )
-        .optional()
-        .map_err(|e| e.to_string())?;
-
     let days_in_month = (end_date - start_date).num_days() as u16 + 1;
 
     // Date Columns
@@ -151,16 +139,12 @@ fn build_sheet_rekap_absen(
             let col = 4 + day_idx;
             let date_str = date_curr.format("%Y-%m-%d").to_string();
 
-            let (status, keterangan): (String, String) = if let Some(p_id) = periode_id {
-                conn.query_row(
-                    "SELECT status, COALESCE(keterangan, '') FROM absensi WHERE nik = ?1 AND periode_id = ?2 AND tanggal = ?3",
-                    rusqlite::params![emp.nik, p_id, date_str],
-                    |r| Ok((r.get(0)?, r.get(1)?)),
-                )
-                .unwrap_or_else(|_| ("".to_string(), "".to_string()))
-            } else {
-                ("".to_string(), "".to_string())
-            };
+            let (status, keterangan): (String, String) = conn.query_row(
+                "SELECT status, COALESCE(keterangan, '') FROM absensi WHERE nik = ?1 AND tanggal = ?2",
+                rusqlite::params![emp.nik, date_str],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap_or_else(|_| ("".to_string(), "".to_string()));
 
             worksheet.write_with_format(row_idx, col, &status, &cell_center).ok();
 
@@ -264,11 +248,11 @@ fn build_sheet_rekap_cuti(
             let ym = format!("{}-{}", year, m_str);
 
             let count_a: i32 = conn
-                .query_row("SELECT COUNT(*) FROM absensi WHERE nik = ?1 AND status = 'CUTI' AND strftime('%Y-%m', tanggal) = ?2", rusqlite::params![emp.nik, ym], |r| r.get(0))
+                .query_row("SELECT COUNT(*) FROM absensi WHERE nik = ?1 AND UPPER(status) IN ('CUTI', 'ALPA', 'IZIN', 'SAKIT') AND strftime('%Y-%m', tanggal) = ?2", rusqlite::params![emp.nik, ym], |r| r.get(0))
                 .unwrap_or(0);
 
             let count_b: i32 = conn
-                .query_row("SELECT COUNT(*) FROM absensi WHERE nik = ?1 AND status IN ('ALPA', 'POTONG_GAJI') AND strftime('%Y-%m', tanggal) = ?2", rusqlite::params![emp.nik, ym], |r| r.get(0))
+                .query_row("SELECT COUNT(*) FROM absensi WHERE nik = ?1 AND UPPER(status) IN ('ALPA', 'POTONG_GAJI') AND strftime('%Y-%m', tanggal) = ?2", rusqlite::params![emp.nik, ym], |r| r.get(0))
                 .unwrap_or(0);
 
             let col_a = 6 + ((m as u16 - 1) * 2);

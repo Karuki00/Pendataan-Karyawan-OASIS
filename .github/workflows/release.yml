@@ -57,6 +57,10 @@ jobs:
             exit 1
           }
 
+      - name: Enable updater artifacts
+        run: |
+          node -e "const fs=require('fs'); const file='src-tauri/tauri.conf.json'; const config=JSON.parse(fs.readFileSync(file, 'utf8')); config.bundle={...(config.bundle||{}), createUpdaterArtifacts:true}; fs.writeFileSync(file, JSON.stringify(config, null, 2)+'\n');"
+
       - name: Build Tauri App & Publish Release
         uses: tauri-apps/tauri-action@v0.5.20
         env:

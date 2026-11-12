@@ -108,15 +108,15 @@ export async function syncGoogleSheetToSqlite(): Promise<{ synced: number; skipp
       await db.execute('DELETE FROM inspection_item_checks WHERE inspection_id = ?', [inspectionId]);
 
       const components = [
-        { name: 'Selang', status: record.Selang },
-        { name: 'Nozle', status: record.Nozle || record.Nozzle },
-        { name: 'Valve', status: record.Valve },
-        { name: 'Lampu', status: record.Lampu },
-        { name: 'Bell', status: record.Bell },
-        { name: 'J.Inter', status: record['J.Inter'] || record['Jack Inter'] },
-        { name: 'Apar', status: record.Apar || record.APAR },
-        { name: 'Pressure Gauge', status: record['Pressure Gauge'] },
-        { name: 'Kunci pilar', status: record['Kunci pilar'] || record['Kunci Box'] }
+        { name: 'Selang', status: record.Selang, note: record['Selang Keterangan'] },
+        { name: 'Nozle', status: record.Nozle || record.Nozzle, note: record['Nozle Keterangan'] },
+        { name: 'Valve', status: record.Valve, note: record['Valve Keterangan'] },
+        { name: 'Lampu', status: record.Lampu, note: record['Lampu Keterangan'] },
+        { name: 'Bell', status: record.Bell, note: record['Bell Keterangan'] },
+        { name: 'J.Inter', status: record['J.Inter'] || record['Jack Inter'], note: record['J.Inter Keterangan'] },
+        { name: 'Apar', status: record.Apar || record.APAR, note: record['Apar Keterangan'] },
+        { name: 'Pressure Gauge', status: record['Pressure Gauge'], note: record['Pressure Gauge Keterangan'] },
+        { name: 'Kunci pilar', status: record['Kunci pilar'] || record['Kunci Box'], note: record['Kunci pilar Keterangan'] }
       ];
 
       let hasDefect = false;
@@ -127,7 +127,7 @@ export async function syncGoogleSheetToSqlite(): Promise<{ synced: number; skipp
         await db.execute(
           `INSERT INTO inspection_item_checks (inspection_id, component_name, condition_code, remark)
            VALUES (?, ?, ?, ?)`,
-          [inspectionId, item.name, item.status, notesVal]
+          [inspectionId, item.name, item.status, item.note || notesVal]
         );
 
         if (item.status === 'X' || item.status === 'R') {

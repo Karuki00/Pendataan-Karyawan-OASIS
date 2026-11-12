@@ -24,8 +24,11 @@ function extractSecurityRegu(jabatan: string, regu: string): string {
   return '';
 }
 
-export async function syncSecurityUsers(employees: Employee[]): Promise<void> {
-  if (!appConfig.isAdminBuild) return;
+export async function syncSecurityUsers(
+  employees: Employee[],
+  options: { allowMasterSync?: boolean } = {},
+): Promise<void> {
+  if (!appConfig.isAdminBuild && !options.allowMasterSync) return;
 
   // Gunakan Map untuk deduplikasi berdasarkan nama atau NIK agar tidak ada data ganda
   const uniqueUsersMap = new Map<string, { name: string; regu: string; active: boolean }>();
@@ -52,7 +55,6 @@ export async function syncSecurityUsers(employees: Employee[]): Promise<void> {
 
   if (!users.length) {
     console.warn(`No SECURITY employees found for Apps Script sync. HR employee count: ${employees.length}`);
-    return;
   }
 
   if (!appConfig.appsScriptAdminUrl || !appConfig.appsScriptAdminSecret) {

@@ -221,6 +221,7 @@ async function handlePasswordSetup() {
     
     setupCompleted.value = true;
     
+    void syncSecurityUsersFromHr().catch((error) => console.error('Security roster Apps Script sync failed:', error));
     void syncSecurityAuthFromHr().catch((error) => console.error('Security auth Apps Script sync failed:', error));
     recoveryCode.value = generatedRecoveryCode;
     setupSuccess.value = `Password berhasil dibuat. KODE PEMULIHAN MASTER: ${generatedRecoveryCode} — simpan di tempat aman dan jangan dibagikan.`;
@@ -421,8 +422,8 @@ function filterWarningData() {
 async function syncSecurityUsersFromHr() {
   if (!runtimeIsMasterNode.value) return;
   const employees = await invoke<Employee[]>("list_employees", { search: "" });
-  await syncSecurityUsers(employees);
   await syncSecurityEmployees(employees);
+  await syncSecurityUsers(employees, { allowMasterSync: true });
 }
 
 async function syncSecurityDatabaseFromHr() {
@@ -683,7 +684,7 @@ function switchTab(tab: string) {
           <span class="text-emerald-200/80">| Sistem Terintegrasi Apartemen Oasis Mitra Sarana</span>
         </div>
         <div class="flex items-center gap-2">
-          <template v-if="userRole === 'hr' && appConfig.isAdminBuild">
+          <template v-if="userRole === 'hr' && runtimeIsMasterNode">
             <span v-if="securityDataSyncMessage" class="max-w-xs truncate text-emerald-100" :title="securityDataSyncMessage">
               {{ securityDataSyncMessage }}
             </span>

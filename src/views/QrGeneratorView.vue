@@ -181,7 +181,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="p-6 space-y-6 bg-slate-50 min-h-screen print:p-0 print:bg-white">
+  <div class="qr-print-root p-6 space-y-6 bg-slate-50 min-h-screen print:p-0 print:bg-white">
     
     <!-- Controls Header -->
     <div class="print:hidden flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white/90 backdrop-blur-md p-5 rounded-2xl border border-slate-200/80 shadow-sm">
@@ -311,7 +311,19 @@ onMounted(() => {
     margin: 10mm;
   }
 
-  body {
+  :global(body *) {
+    visibility: hidden !important;
+  }
+
+  :global(.qr-print-root),
+  :global(.qr-print-root *) {
+    visibility: visible !important;
+  }
+
+  :global(.qr-print-root) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
     background: white !important;
   }
 

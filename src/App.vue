@@ -868,6 +868,7 @@ function switchSecurityTab(tab: string) {
         <template v-if="userRole === 'security'">
           <div class="flex space-x-2 border-b border-emerald-900/20 pb-4">
             <button 
+              data-tour="security-inspection-tab"
               @click="switchSecurityTab('security_inspection')" 
               :class="activeTab === 'security_inspection' ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md' : 'bg-white text-slate-700 hover:bg-slate-100'"
               class="px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer border border-slate-200"
@@ -875,6 +876,7 @@ function switchSecurityTab(tab: string) {
               🚨 Dasbor Inspeksi Hydrant
             </button>
             <button 
+              data-tour="security-attendance-tab"
               @click="switchSecurityTab('security_absensi')" 
               :class="activeTab === 'security_absensi' ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md' : 'bg-white text-slate-700 hover:bg-slate-100'"
               class="px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer border border-slate-200"

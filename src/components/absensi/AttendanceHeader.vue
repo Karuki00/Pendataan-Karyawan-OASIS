@@ -200,6 +200,7 @@ onUnmounted(() => {
 
       <!-- Status Indikator untuk Security -->
       <div
+        data-tour="security-attendance-status"
         v-if="isSecurity"
         class="flex items-center gap-2 rounded-xl border px-3 py-1.5 text-[11px] font-bold"
         :class="rekapConnectionStatus === 'online'

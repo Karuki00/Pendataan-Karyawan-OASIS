@@ -357,7 +357,7 @@ onMounted(async () => {
     </div>
 
     <!-- Chief Security PIN Management -->
-    <div v-if="props.canManagePins" class="rounded-2xl border border-slate-200/80 bg-white/90 p-5 shadow-sm backdrop-blur-md">
+    <div v-if="props.canManagePins" data-tour="security-pin-management" class="rounded-2xl border border-slate-200/80 bg-white/90 p-5 shadow-sm backdrop-blur-md">
       <div class="flex flex-wrap items-center justify-between gap-4">
         <div>
         <h3 class="text-sm font-bold text-slate-900">Buat / Reset PIN Petugas Security</h3>

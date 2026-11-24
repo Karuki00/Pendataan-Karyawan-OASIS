@@ -1,3 +1,22 @@
+# OASIS One v1.2.7
+
+## Perubahan
+
+- Memperbarui panduan Security menjadi alur lengkap dari pemeriksaan
+  Rekapitulasi Absensi, konfirmasi sinkronisasi HR dari Master Node, pembuatan
+  PIN petugas, login inspeksi, sampai sinkronisasi hasil inspeksi.
+- Menambahkan langkah interaktif pada tutorial Security untuk menyorot tab
+  absensi, status rekap, panel PIN, dan kontrol sinkronisasi inspeksi.
+- Menjelaskan tindakan yang benar saat data Security belum tersedia: hubungi HR
+  untuk sinkronisasi dari Master dan jangan membuat data pengganti di Client.
+- Memperluas `USER_GUIDE.md` dengan tutorial operasional Security dan panduan
+  penggunaan Force Re-sync.
+
+## Verifikasi
+
+- `npm.cmd run build` berhasil.
+- `cargo check` berhasil.
+
 # OASIS One v1.2.6
 
 ## Perubahan

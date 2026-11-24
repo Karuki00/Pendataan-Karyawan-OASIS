@@ -6,4 +6,7 @@ export const appConfig = {
   inspectionAccessToken: import.meta.env.VITE_INSPECTION_ACCESS_TOKEN || '',
   isAdminBuild: import.meta.env.VITE_ADMIN_BUILD === 'true',
   isMasterNode: import.meta.env.VITE_MASTER_NODE === 'true',
+  // External spreadsheet/database synchronization is release-only.
+  // `tauri dev` runs with DEV=true, so test imports stay local.
+  externalSyncEnabled: import.meta.env.PROD,
 };

@@ -11,6 +11,9 @@ export async function syncGoogleSheetToSqlite(): Promise<{ synced: number; skipp
   let errors = 0;
 
   try {
+    if (!appConfig.externalSyncEnabled) {
+      return { synced: 0, skipped: 0, errors: 0 };
+    }
     if (!GOOGLE_APPS_SCRIPT_URL || !ACTIVE_DAILY_TOKEN) {
       throw new Error('Inspection sync is not configured. Set VITE_APPS_SCRIPT_URL and VITE_INSPECTION_ACCESS_TOKEN.');
     }

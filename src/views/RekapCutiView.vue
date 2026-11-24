@@ -80,7 +80,7 @@ onMounted(() => {
         <!-- Dropdown Pilih Divisi -->
         <div class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
           <span class="text-xs font-bold text-slate-500">Divisi:</span>
-          <select
+          <select data-tour="leave-division"
             v-model="selectedDivision"
             class="bg-transparent text-xs font-bold text-slate-800 border-0 focus:outline-none cursor-pointer"
           >
@@ -92,7 +92,7 @@ onMounted(() => {
         </div>
 
         <!-- Modular Future-Proof Year Selector -->
-        <YearSelector v-model="selectedLeaveYear" />
+        <div data-tour="leave-year"><YearSelector v-model="selectedLeaveYear" /></div>
       </div>
     </div>
 
@@ -158,7 +158,7 @@ onMounted(() => {
 
               <!-- Action Button -->
               <td class="px-2 py-2 text-center font-sans">
-                <button
+                <button data-tour="leave-quota"
                   type="button"
                   @click="openEditModal(row)"
                   class="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-all cursor-pointer"

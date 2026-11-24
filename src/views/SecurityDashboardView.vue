@@ -337,7 +337,7 @@ onMounted(async () => {
           {{ syncMessage }}
         </span>
 
-        <button 
+        <button data-tour="security-sync"
           @click="handleSync" 
           :disabled="isSyncing"
           class="inline-flex items-center gap-2 rounded-xl border border-emerald-600/30 bg-emerald-50 px-4 py-2.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-600 hover:text-white transition-all shadow-sm cursor-pointer active:scale-95 disabled:opacity-50"
@@ -345,7 +345,7 @@ onMounted(async () => {
           <span>{{ isSyncing ? 'Syncing...' : '🔄 Sync Google Sheets' }}</span>
         </button>
 
-        <button 
+        <button data-tour="security-force-sync"
           @click="handleForceResync" 
           :disabled="isSyncing"
           class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 px-4 py-2.5 text-xs font-semibold text-white shadow-md shadow-amber-600/20 hover:from-amber-700 hover:to-orange-700 transition-all cursor-pointer active:scale-95 disabled:opacity-50"

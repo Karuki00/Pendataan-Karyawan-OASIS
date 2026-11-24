@@ -306,6 +306,7 @@ async function savePreview() {
 <template>
   <section class="space-y-6">
     <div
+      data-tour="excel-file-picker"
       class="rounded-3xl border-2 border-dashed p-8 text-center transition-all cursor-pointer"
       :class="isDragging ? 'border-emerald-500 bg-emerald-50/50 scale-[1.01]' : 'border-slate-300 bg-slate-50/50 hover:bg-slate-100/80'"
       @dragover.prevent="isDragging = true"
@@ -343,7 +344,7 @@ async function savePreview() {
         
         <label class="flex items-center gap-2 font-semibold">
           <span class="whitespace-nowrap">Ganti Sheet:</span>
-          <select v-model="selectedSheetName" class="rounded-xl border border-emerald-300 bg-white px-3 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500/20" @change="onSheetChange">
+        <select data-tour="excel-sheet-selector" v-model="selectedSheetName" class="rounded-xl border border-emerald-300 bg-white px-3 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500/20" @change="onSheetChange">
             <option v-for="sheetName in sheetNames" :key="sheetName" :value="sheetName">
               {{ sheetName }} ({{ Math.round((sheetScores[sheetName] ?? 0) * 100) }}%)
             </option>
@@ -355,7 +356,7 @@ async function savePreview() {
     <p v-if="errorMessage" class="rounded-xl bg-rose-50 p-4 text-xs font-semibold text-rose-700 border border-rose-200">⚠️ {{ errorMessage }}</p>
     <p v-if="successMessage" class="rounded-xl bg-emerald-50 p-4 text-xs font-semibold text-emerald-700 border border-emerald-200">✅ {{ successMessage }}</p>
 
-    <div v-if="evaluatedRows.length" class="space-y-4 overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
+    <div v-if="evaluatedRows.length" data-tour="excel-preview" class="space-y-4 overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
         <div>
           <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
@@ -377,7 +378,7 @@ async function savePreview() {
             </span>
           </div>
 
-          <button 
+          <button data-tour="excel-import-confirm"
             class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-emerald-600/20 hover:bg-emerald-700 disabled:opacity-50 transition-all cursor-pointer" 
             :disabled="isSaving || !importableRows.length" 
             @click="savePreview"

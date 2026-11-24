@@ -224,14 +224,14 @@ onMounted(() => {
         </select>
 
         <div class="flex items-center space-x-2 border-l border-slate-200 pl-3">
-          <button 
+          <button data-tour="qr-print-current"
             @click="handlePrintCurrentPage"
             :disabled="isPreparingPrint"
             class="px-4 py-2.5 bg-emerald-50 hover:bg-emerald-600 border border-emerald-600/30 text-emerald-700 hover:text-white text-xs font-semibold rounded-xl shadow-sm transition-all active:scale-95 cursor-pointer disabled:opacity-50"
           >
             <span>{{ isPreparingPrint ? 'Menyiapkan...' : 'Cetak Hal Ini 🖨️' }}</span>
           </button>
-          <button 
+          <button data-tour="qr-print-all"
             @click="handlePrintAllPages"
             :disabled="isPreparingPrint"
             class="px-4 py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white text-xs font-semibold rounded-xl shadow-md shadow-amber-600/20 transition-all active:scale-95 cursor-pointer disabled:opacity-50"

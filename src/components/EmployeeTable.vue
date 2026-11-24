@@ -14,6 +14,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
+  import: [];
   edit: [employee: Employee];
   resetSearch: [];
   refresh: [];
@@ -395,6 +396,15 @@ onMounted(() => void loadEmployees());
       
       <!-- Tombol Trigger Ekspor Excel -->
       <button 
+        data-tour="employee-import-button"
+        @click="emit('import')"
+        class="inline-flex items-center gap-2 rounded-lg border border-emerald-600/30 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-600 hover:text-white transition-colors shadow-sm cursor-pointer whitespace-nowrap"
+      >
+        <span>Import Excel</span>
+      </button>
+
+      <button 
+        data-tour="employee-export"
         @click="triggerExportModal" 
         :disabled="isExporting"
         class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors shadow-sm cursor-pointer whitespace-nowrap"

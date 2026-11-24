@@ -18,6 +18,8 @@ import QrGeneratorView from "./views/QrGeneratorView.vue";
 import ExcelImporter from "./components/ExcelImporter.vue";
 import EmployeeModal from "./components/EmployeeModal.vue";
 import AboutModal from "./components/AboutModal.vue";
+import TutorialModal from "./components/TutorialModal.vue";
+import GuidedFeatureTour, { type GuidedFeature } from "./components/GuidedFeatureTour.vue";
 
 import { useUpdater } from "./composables/useUpdater";
 import { useAnomalyChecker } from "./composables/useAnomalyChecker";
@@ -90,13 +92,66 @@ const securityDataSyncMessage = ref('');
 const isModalOpen = ref(false);
 const isImportModalOpen = ref(false);
 const showAboutModal = ref(false);
+const showTutorialModal = ref(false);
+const showGuidedTour = ref(false);
+const guidedTourFeature = ref<GuidedFeature>('hr-master');
 const employeeToEdit = ref<Employee | null>(null);
 
 const masterSearchQuery = ref("");
 const activeMetricKey = ref<MetricFilterKey | null>(null);
+const TUTORIAL_SEEN_KEY = 'oasis-one-tutorial-seen-v1';
+const GUIDED_TOUR_SEEN_PREFIX = 'oasis-one-guided-tour-seen-v1:';
 
 const { checkForUpdates } = useUpdater();
 const { showAnomalyToast, warningEmployeesCount, anomalyDetails, checkDataAnomalies } = useAnomalyChecker();
+
+function maybeShowTutorial() {
+  if (!localStorage.getItem(TUTORIAL_SEEN_KEY)) showTutorialModal.value = true;
+}
+
+function closeTutorial() {
+  localStorage.setItem(TUTORIAL_SEEN_KEY, 'true');
+  showTutorialModal.value = false;
+}
+
+function featureForTab(tab: string): GuidedFeature | null {
+  if (tab === 'master') return 'hr-master';
+  if (tab === 'absensi') return 'hr-absensi';
+  if (tab === 'cuti') return 'hr-cuti';
+  if (tab === 'security_inspection') return 'security-inspection';
+  if (tab === 'security_absensi') return 'security-absensi';
+  if (tab === 'qr_generator') return 'security-qr';
+  if (tab === 'engineering_absensi') return 'engineering-absensi';
+  if (tab === 'housekeeping_absensi') return 'housekeeping-absensi';
+  return null;
+}
+
+function startGuidedTour(feature: GuidedFeature, force = false) {
+  if (!force && localStorage.getItem(`${GUIDED_TOUR_SEEN_PREFIX}${feature}`)) return;
+  guidedTourFeature.value = feature;
+  showGuidedTour.value = true;
+}
+
+function closeGuidedTour() {
+  localStorage.setItem(`${GUIDED_TOUR_SEEN_PREFIX}${guidedTourFeature.value}`, 'true');
+  showGuidedTour.value = false;
+}
+
+function openGuidedHelp() {
+  const currentFeature = featureForTab(activeTab.value) || (userRole.value === 'security' ? 'security-inspection' : 'hr-master');
+  startGuidedTour(currentFeature, true);
+}
+
+function maybeStartTourForTab(tab: string) {
+  const feature = featureForTab(tab);
+  if (feature) setTimeout(() => startGuidedTour(feature), 150);
+}
+
+function finishPasswordSetup() {
+  needsPasswordSetup.value = false;
+  setupCompleted.value = false;
+  maybeShowTutorial();
+}
 
 // Bootstrap / Initial App Hydration
 
@@ -181,6 +236,7 @@ async function bootstrapApp() {
     console.error('Gagal melakukan inisialisasi aplikasi:', error);
   } finally {
     isInitializing.value = false;
+    if (!needsPasswordSetup.value) maybeShowTutorial();
   }
 }
 
@@ -392,6 +448,10 @@ function setLoggedInRole(role: string) {
   } else {
     activeTab.value = 'dashboard';
   }
+
+  if (role === 'security') setTimeout(() => startGuidedTour('security-inspection'), 250);
+  if (role === 'engineering') setTimeout(() => startGuidedTour('engineering-absensi'), 250);
+  if (role === 'housekeeping') setTimeout(() => startGuidedTour('housekeeping-absensi'), 250);
 }
 
 function logout() {
@@ -460,6 +520,12 @@ function switchTab(tab: string) {
     masterSearchQuery.value = "";
     activeTab.value = tab;
   }
+  maybeStartTourForTab(tab);
+}
+
+function switchSecurityTab(tab: string) {
+  activeTab.value = tab;
+  maybeStartTourForTab(tab);
 }
 </script>
 
@@ -538,7 +604,7 @@ function switchTab(tab: string) {
 
           <button 
             type="button" 
-            @click="needsPasswordSetup = false; setupCompleted = false;" 
+            @click="finishPasswordSetup" 
             class="w-full rounded-xl bg-emerald-800 py-3 text-sm font-bold text-white shadow-lg transition hover:bg-emerald-950 cursor-pointer"
           >
             Lanjut ke Halaman Login ➔
@@ -668,7 +734,7 @@ function switchTab(tab: string) {
         @view-warning="filterWarningData"
       />
 
-      <AppHeader @open-about="showAboutModal = true" />
+      <AppHeader @open-about="showAboutModal = true" @open-tutorial="openGuidedHelp" />
       <AboutModal v-if="showAboutModal" @close="showAboutModal = false" />
 
       <!-- Role-Based Navigation Header -->
@@ -789,6 +855,7 @@ function switchTab(tab: string) {
             :active-metric-key="activeMetricKey || undefined" 
             @reset-search="masterSearchQuery = ''" 
             @edit="openEdit" 
+            @import="isImportModalOpen = true"
             @refresh="handleSaved"
             @clear-metric-filter="activeMetricKey = null" 
           />
@@ -801,21 +868,21 @@ function switchTab(tab: string) {
         <template v-if="userRole === 'security'">
           <div class="flex space-x-2 border-b border-emerald-900/20 pb-4">
             <button 
-              @click="activeTab = 'security_inspection'" 
+              @click="switchSecurityTab('security_inspection')" 
               :class="activeTab === 'security_inspection' ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md' : 'bg-white text-slate-700 hover:bg-slate-100'"
               class="px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer border border-slate-200"
             >
               🚨 Dasbor Inspeksi Hydrant
             </button>
             <button 
-              @click="activeTab = 'security_absensi'" 
+              @click="switchSecurityTab('security_absensi')" 
               :class="activeTab === 'security_absensi' ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md' : 'bg-white text-slate-700 hover:bg-slate-100'"
               class="px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer border border-slate-200"
             >
               📅 Rekapitulasi Absensi Security
             </button>
             <button 
-              @click="activeTab = 'qr_generator'" 
+              @click="switchSecurityTab('qr_generator')" 
               :class="activeTab === 'qr_generator' ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md' : 'bg-white text-slate-700 hover:bg-slate-100'"
               class="px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer border border-slate-200"
             >
@@ -832,7 +899,8 @@ function switchTab(tab: string) {
         <template v-if="userRole === 'engineering'">
           <div class="flex space-x-2 border-b border-emerald-900/20 pb-4">
             <button 
-              @click="activeTab = 'engineering_absensi'" 
+              data-tour="engineering-attendance-tab"
+              @click="switchSecurityTab('engineering_absensi')" 
               :class="activeTab === 'engineering_absensi' ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md' : 'bg-white text-slate-700 hover:bg-slate-100'"
               class="px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer border border-slate-200"
             >
@@ -847,7 +915,8 @@ function switchTab(tab: string) {
         <template v-if="userRole === 'housekeeping'">
           <div class="flex space-x-2 border-b border-emerald-900/20 pb-4">
             <button 
-              @click="activeTab = 'housekeeping_absensi'" 
+              data-tour="housekeeping-attendance-tab"
+              @click="switchSecurityTab('housekeeping_absensi')" 
               :class="activeTab === 'housekeeping_absensi' ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md' : 'bg-white text-slate-700 hover:bg-slate-100'"
               class="px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer border border-slate-200"
             >
@@ -878,6 +947,9 @@ function switchTab(tab: string) {
         </div>
       </Teleport>
     </template>
+
+    <TutorialModal v-if="showTutorialModal" @close="closeTutorial" />
+    <GuidedFeatureTour v-if="showGuidedTour" :feature="guidedTourFeature" @close="closeGuidedTour" @finished="closeGuidedTour" />
   </div>
 </template>
 

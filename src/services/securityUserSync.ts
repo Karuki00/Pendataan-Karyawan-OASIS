@@ -28,6 +28,7 @@ export async function syncSecurityUsers(
   employees: Employee[],
   options: { allowMasterSync?: boolean } = {},
 ): Promise<void> {
+  if (!appConfig.externalSyncEnabled) return;
   if (!appConfig.isAdminBuild && !options.allowMasterSync) return;
 
   // Gunakan Map untuk deduplikasi berdasarkan nama atau NIK agar tidak ada data ganda
@@ -89,6 +90,7 @@ export async function syncSecurityUsers(
 }
 
 export async function syncSecurityEmployees(employees: Employee[]): Promise<void> {
+  if (!appConfig.externalSyncEnabled) return;
   if (!appConfig.appsScriptAdminUrl || !appConfig.appsScriptAdminSecret) {
     throw new Error('Apps Script admin URL/secret belum dikonfigurasi untuk roster Security.');
   }
@@ -129,6 +131,7 @@ export async function syncSecurityEmployees(employees: Employee[]): Promise<void
 }
 
 export async function syncSecurityAuthFromHr(): Promise<void> {
+  if (!appConfig.externalSyncEnabled) return;
   if (!appConfig.appsScriptAdminUrl || !appConfig.appsScriptAdminSecret) {
     throw new Error('Apps Script admin URL/secret belum dikonfigurasi untuk sinkronisasi akun Security.');
   }
@@ -309,6 +312,7 @@ export async function syncSecurityAttendanceToSheet(payload: {
   employees: Array<{ nik: string; name: string; jabatan?: string; regu?: string }>;
   attendance: Array<{ name: string; statuses: Record<string, string>; notes: Record<string, string> }>;
 }): Promise<void> {
+  if (!appConfig.externalSyncEnabled) return;
   if (!appConfig.appsScriptAdminUrl || !appConfig.securityAttendanceSecret) {
     throw new Error('URL dan secret rekap Security belum diatur pada build Security.');
   }

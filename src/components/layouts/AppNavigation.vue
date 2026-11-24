@@ -16,6 +16,7 @@ const emit = defineEmits<{
 <template>
   <nav class="flex items-center gap-1.5 rounded-2xl bg-white/80 p-1.5 shadow-md border border-amber-900/5">
     <button 
+      data-tour="hr-dashboard"
       class="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all cursor-pointer"
       :class="activeTab === 'dashboard' ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'" 
       @click="emit('selectTab', 'dashboard')"
@@ -24,6 +25,7 @@ const emit = defineEmits<{
     </button>
     
     <button 
+      data-tour="hr-master-tab"
       class="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all cursor-pointer"
       :class="activeTab === 'master' ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'" 
       @click="emit('selectTab', 'master')"
@@ -32,6 +34,7 @@ const emit = defineEmits<{
     </button>
 
     <button 
+      data-tour="hr-attendance-tab"
       class="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all cursor-pointer"
       :class="activeTab === 'absensi' ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'" 
       @click="emit('selectTab', 'absensi')"
@@ -40,6 +43,7 @@ const emit = defineEmits<{
     </button>
 
     <button 
+      data-tour="hr-leave-tab"
       class="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all cursor-pointer"
       :class="activeTab === 'cuti' ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'" 
       @click="emit('selectTab', 'cuti')"

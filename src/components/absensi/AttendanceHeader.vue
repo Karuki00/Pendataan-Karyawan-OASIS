@@ -154,7 +154,7 @@ onUnmounted(() => {
       <!-- Dropdown Filter Divisi Khusus HR -->
       <div v-if="isHr" class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
         <span class="text-xs font-bold text-slate-500">Pilih Divisi:</span>
-        <select
+        <select data-tour="attendance-division"
           :value="hrFilterDivision"
           @change="(e) => emit('update:hrFilterDivision', (e.target as HTMLSelectElement).value)"
           class="bg-transparent text-xs font-bold text-slate-800 border-0 focus:outline-none cursor-pointer"
@@ -169,7 +169,7 @@ onUnmounted(() => {
       <!-- Periode Datepicker -->
       <div class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
         <span class="text-xs font-bold text-slate-500">Periode:</span>
-        <input
+        <input data-tour="attendance-month"
           type="month"
           v-model="monthInputValue"
           class="bg-transparent text-xs font-bold text-slate-800 border-0 focus:outline-none cursor-pointer"
@@ -177,7 +177,7 @@ onUnmounted(() => {
       </div>
 
       <!-- Tombol Tarik Data Cloud KHUSUS HR SAAT MELIHAT SECURITY -->
-      <button
+      <button data-tour="attendance-cloud-sync"
         v-if="isHr && hrFilterDivision === 'security'"
         type="button"
         @click="emit('refresh')"
@@ -188,7 +188,7 @@ onUnmounted(() => {
       </button>
 
       <!-- Tombol Sync (Push) untuk sisi aplikasi Security -->
-      <button
+      <button data-tour="security-attendance-sync"
         v-if="isSecurity"
         type="button"
         @click="syncSecurityAttendance"
@@ -213,7 +213,7 @@ onUnmounted(() => {
         <span v-if="rekapConnectionStatus === 'online'">({{ rekapRows }} baris)</span>
       </div>
 
-      <button
+      <button data-tour="attendance-export"
         type="button"
         @click="isExportPreviewOpen = true"
         class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-2 transition-all shadow-xs cursor-pointer"

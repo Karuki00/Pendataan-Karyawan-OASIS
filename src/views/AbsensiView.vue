@@ -249,14 +249,14 @@ onMounted(() => {
     </div>
 
     <template v-else>
-      <DailyAttendanceView
+      <div data-tour="attendance-table"><DailyAttendanceView
         :selected-year="selectedYear"
         :selected-month="selectedMonth"
         :employees="paginatedEmployees"
         :attendance-map="attendanceMap"
         :keterangan-map="keteranganMap"
         @update-cell="handleCellUpdate"
-      />
+      /></div>
 
       <!-- Pagination Footer Bar -->
       <div v-if="employees.length > 0" class="flex items-center justify-between px-5 py-3 bg-white rounded-2xl border border-slate-200/80 shadow-xs">

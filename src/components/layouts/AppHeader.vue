@@ -4,6 +4,7 @@ import tauriConfig from "../../../src-tauri/tauri.conf.json";
 
 defineEmits<{
   (e: 'openAbout'): void;
+  (e: 'openTutorial'): void;
 }>();
 
 const appVersion = tauriConfig.version;
@@ -27,10 +28,15 @@ const appVersion = tauriConfig.version;
         </div>
       </div>
 
-      <button @click="$emit('openAbout')" class="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2 text-xs font-semibold text-white hover:bg-white/20 cursor-pointer">
+      <div class="flex items-center gap-2">
+        <button @click="$emit('openTutorial')" class="rounded-xl border border-amber-200/40 bg-amber-400/15 px-3.5 py-2 text-sm font-bold text-white hover:bg-amber-400/25 cursor-pointer">
+          ? Bantuan
+        </button>
+        <button @click="$emit('openAbout')" class="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2 text-xs font-semibold text-white hover:bg-white/20 cursor-pointer">
         <span>ℹ️ Tentang Aplikasi</span>
         <span class="rounded-lg bg-emerald-950/40 px-2 py-0.5 text-[10px] font-mono">v{{ appVersion }}</span>
-      </button>
+        </button>
+      </div>
     </div>
   </header>
 </template>

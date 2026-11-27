@@ -10,7 +10,8 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev --config src-tauri/tauri.conf.dev.json",
     "tauri:build": "tauri build --config src-tauri/tauri.conf.json",
-    "tauri:build:dev": "tauri build --config src-tauri/tauri.conf.dev.json"
+    "tauri:build:dev": "tauri build --config src-tauri/tauri.conf.dev.json",
+    "tauri:build:win7": "tauri build --config src-tauri/tauri.conf.win7.json"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

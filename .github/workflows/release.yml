@@ -150,6 +150,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Download Windows 7 compatible WebView2 runtime
+        shell: pwsh
+        env:
+          WEBVIEW2_FIXED_RUNTIME_URL: https://github.com/westinyang/WebView2RuntimeArchive/releases/download/109.0.1518.78/Microsoft.WebView2.FixedVersionRuntime.109.0.1518.78.x64.cab
+          WEBVIEW2_FIXED_RUNTIME_SHA256: 7622281CF83DE1A35E3A471F432F7A897D65F0A7D3975DF08512B7B253DD45C7
+        run: |
+          $runtimeRoot = Join-Path $env:GITHUB_WORKSPACE 'src-tauri'
+          $runtimeDir = Join-Path $runtimeRoot 'Microsoft.WebView2.FixedVersionRuntime.109.0.1518.78.x64'
+          $cabPath = Join-Path $env:RUNNER_TEMP 'Microsoft.WebView2.FixedVersionRuntime.109.0.1518.78.x64.cab'
+          Invoke-WebRequest -Uri $env:WEBVIEW2_FIXED_RUNTIME_URL -OutFile $cabPath
+          $hash = (Get-FileHash $cabPath -Algorithm SHA256).Hash
+          if ($hash -ne $env:WEBVIEW2_FIXED_RUNTIME_SHA256) { throw "WebView2 runtime checksum mismatch: $hash" }
+          & "$env:SystemRoot\System32\expand.exe" -F:* $cabPath $runtimeRoot
+          if ($LASTEXITCODE -ne 0) { throw "Failed to extract WebView2 fixed runtime" }
+          if (-not (Test-Path (Join-Path $runtimeDir 'msedgewebview2.exe'))) {
+            throw "Extracted WebView2 runtime is incomplete"
+          }
+
       - name: Build Windows 7 compatibility installer
         env:
           VITE_APPS_SCRIPT_URL: 'https://script.google.com/a/*/macros/s/AKfycbzRHcYZzNof6_5CihFIkGeD8zF-pEK3KPkcc0aUmyUBGG4H28FToeq6EzOryuevmSQ/exec'
